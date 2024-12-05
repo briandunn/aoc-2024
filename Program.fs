@@ -13,19 +13,37 @@ module Regex =
 
 module One = // For more information see https://aka.ms/fsharp-console-apps
     let parse =
-      let fold ((ls, rs) as acc) line =
-        line
-        |> Regex.split "\s+"
-        |> Seq.map System.Convert.ToInt32
-        |> Seq.toList
-        |> function
-            | l :: r :: [] -> l :: ls, r :: rs
-            | _ -> acc
-      readSeq >> Seq.fold fold ([], []) >> function | (ls, rs) -> List.rev ls, List.rev rs
+        let fold ((ls, rs) as acc) line =
+            line
+            |> Regex.split "\s+"
+            |> Seq.map System.Convert.ToInt32
+            |> Seq.toList
+            |> function
+                | l :: r :: [] -> l :: ls, r :: rs
+                | _ -> acc
+
+        readSeq
+        >> Seq.fold fold ([], [])
+        >> function
+            | (ls, rs) -> List.rev ls, List.rev rs
 
     let one stream =
-      let (ls, rs) = parse stream
-      List.map2 (fun l r -> abs (l - r) ) (List.sort ls) (List.sort rs)
-      |> List.sum
+        let (ls, rs) = parse stream
 
-printfn "%A" <| One.one stdin
+        List.map2 (fun l r -> abs (l - r)) (List.sort ls) (List.sort rs)
+        |> List.sum
+
+    let two stream =
+        let (ls, rs) = parse stream
+        let freq = rs |> List.countBy id |> Map.ofList
+
+        ls
+        |> List.map (fun i ->
+            freq
+            |> Map.tryFind i
+            |> Option.defaultValue 0
+            |> (*) i)
+        |> List.sum
+        
+
+printfn "%A" <| One.two stdin
