@@ -48,28 +48,83 @@ module One = // For more information see https://aka.ms/fsharp-console-apps
         |> List.sum
 
 module Two =
+
+    type Direction =
+        | Up
+        | Down
+        | Unknown
+
     let parse =
         readSeq
         >> Seq.map (String.split "\s+" >> (Seq.map String.parseInt))
 
-    let one =
-        let rec isSafe direction =
-            let inRange i = List.contains i [ 1; 2; 3 ]
+    let inRange i = List.contains i [ 1; 2; 3 ]
 
+    let one =
+        let rec isSafe =
             function
-            | first :: second :: rest ->
-                match direction with
-                | None when inRange (abs (second - first)) ->
-                    isSafe (Some(first < second)) (second :: rest)
-                | Some true when inRange (second - first) -> isSafe direction (second :: rest)
-                | Some false when inRange (first - second) -> isSafe direction (second :: rest)
-                | _ -> false
-            | _ -> true
+            | (first :: second :: _) as levels -> isSafe' (first < second) levels
+            | _ -> true // one level
+
+        and isSafe' ascending =
+            function
+            | first :: second :: rest when ascending && inRange (second - first) -> isSafe' ascending (second :: rest)
+            | first :: second :: rest when not ascending && inRange (first - second) ->
+                isSafe' ascending (second :: rest)
+            | [ _ ] -> true
+            | _ -> false
 
         parse
-        >> Seq.filter (Seq.toList >> (isSafe None))
+        >> Seq.filter (Seq.toList >> isSafe)
+        >> Seq.length
+
+    let two =
+        let rec isSafe =
+            function
+            | (first :: second :: _) as levels -> isSafe' (first < second) levels
+            | _ -> true // one level
+
+        and isSafe' ascending =
+            function
+            | first :: second :: rest when ascending && inRange (second - first) -> isSafe' ascending (second :: rest)
+            | first :: second :: rest when not ascending && inRange (first - second) ->
+                isSafe' ascending (second :: rest)
+            | [ _ ] -> true
+            | _ -> false
+
+        parse
+        >> Seq.filter (Seq.toList >> isSafe)
         >> Seq.length
 
 
+[<EntryPoint>]
+let main args =
+    let puzzles =
+        seq {
+            for day, puzzle, f in
+                [ 1, 1, One.one
+                  1, 2, One.two
+                  2, 1, Two.one
+                  2, 2, Two.two ] -> (day, puzzle), f
+        }
+        |> Map.ofSeq
 
-printfn "%A" <| Two.one stdin
+    args
+    |> Seq.map String.parseInt
+    |> Seq.toList
+    |> function
+        | [ day; puzzle ] ->
+            puzzles
+            |> Map.tryFind (day, puzzle)
+            |> function
+                | Some f ->
+                    stdin |> f |> printfn "%A"
+                    0
+                | None ->
+                    printfn "No puzzle %d for day %d" puzzle day
+                    1
+
+        | m ->
+            printfn "invalid input: %A" m
+            printfn "Usage: dotnet run <day> <puzzle> < input.txt"
+            1
