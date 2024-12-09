@@ -170,7 +170,7 @@ module Four =
     module Grid =
 
         // let flatten : 'a Grid -> 'a array = Array.fold Array.append [||]
-        let flatten (grid: 'a[,]) = Seq.cast<'a> grid
+        let flatten (grid: 'a [,]) = Seq.cast<'a> grid
 
         let mapi = Array2D.mapi
 
@@ -215,32 +215,54 @@ module Four =
         | W -> x - 1, y
         | NW -> x - 1, y - 1
 
-
-    let countAt grid x y =
-        function
-        | 'X' ->
-            let choose start letter direction =
-                let pt = offSet start direction
-
-                match Grid.item pt grid with
-                | Some letter' when letter = letter' -> Some(direction, pt)
-                | _ -> None
-
-            [ N; NE; E; SE; S; SW; W; NW ]
-            |> List.choose (choose (x, y) 'M')
-            |> List.choose (fun (direction, start) -> choose start 'A' direction)
-            |> List.choose (fun (direction, start) -> choose start 'S' direction)
-            |> List.length
-        | _ -> 0
+    let parse = Seq.map String.chars >> Grid.fromSeq
 
     let one stream =
-        let parse = Seq.map String.chars >> Grid.fromSeq
+        let countAt grid x y =
+            function
+            | 'X' ->
+                let choose start letter direction =
+                    let pt = offSet start direction
+
+                    match Grid.item pt grid with
+                    | Some letter' when letter = letter' -> Some(direction, pt)
+                    | _ -> None
+
+                [ N; NE; E; SE; S; SW; W; NW ]
+                |> List.choose (choose (x, y) 'M')
+                |> List.choose (fun (direction, start) -> choose start 'A' direction)
+                |> List.choose (fun (direction, start) -> choose start 'S' direction)
+                |> List.length
+            | _ -> 0
 
         let grid = stream |> readSeq |> parse
 
-        grid |> Grid.mapi (countAt grid) |> Grid.flatten |> Seq.sum
+        grid
+        |> Grid.mapi (countAt grid)
+        |> Grid.flatten
+        |> Seq.sum
 
-    let two stream = 0
+    let two stream =
+        let countAt grid x y =
+            function
+            | 'A' ->
+                let filter =
+                    List.choose (fun direction -> Grid.item (offSet (x, y) direction) grid)
+                    >> Set.ofList
+                    >> ((=) (Set.ofList [ 'M'; 'S' ]))
+
+                if [ [ NE; SW ]; [ NW; SE ] ] |> List.forall filter then
+                    1
+                else
+                    0
+            | _ -> 0
+
+        let grid = stream |> readSeq |> parse
+
+        grid
+        |> Grid.mapi (countAt grid)
+        |> Grid.flatten
+        |> Seq.sum
 
 [<EntryPoint>]
 let main args =
