@@ -102,6 +102,65 @@ module Two =
         >> Seq.filter (Seq.toList >> (isSafe Set.empty))
         >> Seq.length
 
+module Three =
+    let one =
+        let parse line =
+            let map (m: System.Text.RegularExpressions.Match) =
+                String.parseInt m.Groups.[1].Value, String.parseInt m.Groups.[2].Value
+
+            System
+                .Text
+                .RegularExpressions
+                .Regex("mul\((\d+),(\d+)\)")
+                .Matches(line)
+            |> Seq.map map
+
+        readSeq
+        >> Seq.map (parse >> Seq.map (fun (x, y) -> x * y) >> Seq.sum)
+        >> Seq.sum
+
+    type Instruction =
+        | Mul of int * int
+        | Do
+        | Don't
+
+    let two stream =
+        let parse line =
+            let map (m: System.Text.RegularExpressions.Match) =
+                [ "mul"; "do"; "dont" ]
+                |> List.tryFind (fun name -> m.Groups.Item(name).Success)
+                |> function
+                    | Some "mul" ->
+                        (String.parseInt m.Groups.[1].Value, String.parseInt m.Groups.[2].Value)
+                        |> Mul
+                        |> Some
+                    | Some "do" -> Some Do
+                    | Some "dont" -> Some Don't
+                    | _ -> None
+
+            System
+                .Text
+                .RegularExpressions
+                .Regex("(?<mul>mul\((\d+),(\d+)\))|(?<do>do\(\))|(?<dont>don't\(\))")
+                .Matches(line)
+            |> Seq.choose map
+
+        let foldAll =
+            let foldLine (enabled, sum) =
+                function
+                | Mul (x, y) when enabled -> (true, sum + x * y)
+                | Mul _ -> (false, sum)
+                | Do -> (true, sum)
+                | Don't -> (false, sum)
+
+            Seq.fold foldLine
+
+        stream
+        |> readSeq
+        |> Seq.map parse
+        |> Seq.fold foldAll (true, 0)
+        |> function
+            | (_, sum) -> sum
 
 [<EntryPoint>]
 let main args =
@@ -111,7 +170,9 @@ let main args =
                 [ 1, 1, One.one
                   1, 2, One.two
                   2, 1, Two.one
-                  2, 2, Two.two ] -> (day, puzzle), f
+                  2, 2, Two.two
+                  3, 1, Three.one
+                  3, 2, Three.two ] -> (day, puzzle), f
         }
         |> Map.ofSeq
 
