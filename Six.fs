@@ -11,16 +11,6 @@ type Tile =
     | Open
     | Guard of Direction
 
-let parse' lines =
-    lines
-    |> Grid.fromLines (function
-        | '#' -> Obstruction
-        | '.' -> Open
-        | '^' -> Guard N
-        | '>' -> Guard E
-        | '<' -> Guard W
-        | c -> failwith (sprintf "Invalid character %c" c))
-
 type Pt = int * int
 
 type Guard = { direction: Direction; location: Pt }
@@ -33,15 +23,13 @@ type Grid =
 type Board = { guard: Guard; grid: Grid }
 
 let parse lines =
-    let updateDimensions (guard, grid) ((x, y, _) as cell) =
-        (guard,
-         { grid with
-             width = max grid.width (x + 1)
-             height = max grid.height (y + 1) }),
-        cell
+    let updateDimensions grid (x, y, _) =
+        { grid with
+            width = max grid.width (x + 1)
+            height = max grid.height (y + 1) }
 
-    let fold acc cell =
-        let (((guard, grid) as acc), cell) = updateDimensions acc cell
+    let fold ((guard, grid) as acc) cell =
+        let grid = updateDimensions grid cell
 
         match cell with
         | (x, y, '#') -> (guard, { grid with obstructions = Set.add (x, y) grid.obstructions })
@@ -63,11 +51,47 @@ let parse lines =
         | (Some guard, grid) -> { guard = guard; grid = grid }
         | _ -> failwith "No guard found"
 
+
+let stepForward
+    ({ direction = direction
+       location = (x, y) } as guard)
+    =
+    { guard with
+        location =
+            match direction with
+            | N -> (x, y - 1)
+            | E -> (x + 1, y)
+            | S -> (x, y + 1)
+            | W -> (x - 1, y) }
+
+let turnRight ({ direction = direction } as guard) =
+    { guard with
+        direction =
+            match direction with
+            | N -> E
+            | E -> S
+            | S -> W
+            | W -> N }
+
+let walk { guard = guard; grid = grid } =
+    let rec walk' visited guard =
+        match stepForward guard with
+        | { location = nextLocation } when Set.contains nextLocation grid.obstructions ->
+            walk' visited (turnRight guard)
+        | { location = (nextX, nextY) } when
+            nextX = grid.width
+            || nextY = grid.height
+            || nextX < 0
+            || nextY < 0
+            ->
+            visited
+        | next -> walk' (Set.add next.location visited) next
+
+    walk' Set.empty guard
+
 let one lines =
     let grid = parse lines
 
-    grid |> printfn "%A"
-
-    0
+    grid |> walk |> Set.count
 
 let two lines = 0
