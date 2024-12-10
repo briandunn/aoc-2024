@@ -73,25 +73,52 @@ let turnRight ({ direction = direction } as guard) =
             | S -> W
             | W -> N }
 
-let walk { guard = guard; grid = grid } =
-    let rec walk' visited guard =
-        match stepForward guard with
-        | { location = nextLocation } when Set.contains nextLocation grid.obstructions ->
-            walk' visited (turnRight guard)
-        | { location = (nextX, nextY) } when
-            nextX = grid.width
-            || nextY = grid.height
-            || nextX < 0
-            || nextY < 0
-            ->
-            visited
-        | next -> walk' (Set.add next.location visited) next
+let outOfBounds (x, y) grid =
+    x = grid.width
+    || y = grid.height
+    || x < 0
+    || y < 0
 
-    walk' Set.empty guard
+let one: (string seq) -> int =
+    let walk { guard = guard; grid = grid } =
+        let rec walk' visited guard =
+            match stepForward guard with
+            | { location = nextLocation } when Set.contains nextLocation grid.obstructions ->
+                walk' visited (turnRight guard)
+            | { location = location } when outOfBounds location grid -> visited
+            | next -> walk' (Set.add next.location visited) next
 
-let one lines =
-    let grid = parse lines
+        walk' Set.empty guard
 
-    grid |> walk |> Set.count
+    parse >> walk >> Set.count
 
-let two lines = 0
+let two lines =
+    // count the points where *if* the guard were to turn right, it would
+    // * be obstructed
+    // * on a side that has been visited
+
+    // track point and heading when obstructed
+
+    // must check as we go - only visted up to this point
+    let { grid = grid; guard = guard } = parse lines
+
+    let walk guard =
+        let rec walk' loops obstructed guard =
+            let rec wouldLoop =
+                stepForward
+                >> function
+                    | next when Set.contains next obstructed -> true
+                    | { location = location } when outOfBounds location grid -> false
+                    | next -> wouldLoop next
+
+            match stepForward guard with
+            | { location = nextLocation } when Set.contains nextLocation grid.obstructions ->
+                walk' loops (Set.add guard obstructed) (turnRight guard)
+            | { location = location } when outOfBounds location grid -> loops
+            | next when next |> turnRight |> wouldLoop -> walk' (Set.add (stepForward next).location loops) obstructed next
+            | next -> walk' loops obstructed next
+
+        walk' Set.empty Set.empty guard
+
+    // 656 too low
+    guard |> walk |> Set.count
