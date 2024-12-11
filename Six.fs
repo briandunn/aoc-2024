@@ -93,55 +93,31 @@ let one: (string seq) -> int =
     parse >> walk >> Set.count
 
 let two lines =
-    // count the points where *if* the guard were to turn right, it would
-    // * be obstructed
-    // * on a side that has been visited
-
-    // track point and heading when obstructed
-
-    // must check as we go - only visted up to this point
     let { grid = grid; guard = guardOrigin } = parse lines
 
-    let wouldLoop guardStart =
-        // place an obstruction in front of the guard
-        let obstructions = Set.add (stepForward guardStart).location grid.obstructions
-
-        let rec wouldLoop' visited guard =
+    let walk obstructions =
+        let rec walk' visited guard =
             let visited = Set.add guard visited
+
             match stepForward guard with
-            | next when next = guardStart -> true
-            | next when outOfBounds next.location grid -> false
-            | next when (Set.contains next visited) -> false // looping, but does not include origin
-            | next when Set.contains next.location obstructions -> guard |> turnRight |> wouldLoop' visited
-            | next -> wouldLoop' visited next
+            | next when Set.contains next.location obstructions -> guard |> turnRight |> walk' visited
+            | next when (Set.contains next visited) -> (true, visited)
+            | next when outOfBounds next.location grid -> (false, visited)
+            | next -> walk' visited next
 
-        wouldLoop' Set.empty guardStart
+        walk' Set.empty guardOrigin
 
-    let rec walk loops guard =
-        match stepForward guard with
-        | next when Set.contains next.location grid.obstructions -> walk loops (turnRight guard)
-        | next when outOfBounds next.location grid -> loops
-        | next when wouldLoop guard ->
-            walk (Set.add next.location loops) next
-        | next ->
-            walk loops next
+    let filter obstruction =
+        match grid.obstructions |> Set.add obstruction |> walk with
+        | (true, _) -> true
+        | _ -> false
 
-    // 656 too low
-    // 993 too low
+    let (_, path) = walk grid.obstructions
 
-    // 1534 - not it
-    // 1535 - not it
-
-    // 1719 - not it
-
-    // 1720 too high
-
-    guardOrigin
-    |> walk Set.empty
+    path
+    |> Set.map (function
+        | { location = location } -> location)
     |> Set.remove guardOrigin.location
-    |> Set.filter (fun pt -> not (Set.contains pt grid.obstructions))
-    |> Set.filter (fun pt -> not (outOfBounds pt grid))
-    |> printfn "%A"
-    // |> Set.count
-    0
-
+    |> Set.filter filter
+    |> Set.count
+// 1655
