@@ -100,25 +100,48 @@ let two lines =
     // track point and heading when obstructed
 
     // must check as we go - only visted up to this point
-    let { grid = grid; guard = guard } = parse lines
+    let { grid = grid; guard = guardOrigin } = parse lines
 
-    let walk guard =
-        let rec walk' loops obstructed guard =
-            let rec wouldLoop =
-                stepForward
-                >> function
-                    | next when Set.contains next obstructed -> true
-                    | { location = location } when outOfBounds location grid -> false
-                    | next -> wouldLoop next
+    let wouldLoop guardStart =
+        // place an obstruction in front of the guard
+        let obstructions = Set.add (stepForward guardStart).location grid.obstructions
 
+        let rec wouldLoop' visited guard =
+            let visited = Set.add guard visited
             match stepForward guard with
-            | { location = nextLocation } when Set.contains nextLocation grid.obstructions ->
-                walk' loops (Set.add guard obstructed) (turnRight guard)
-            | { location = location } when outOfBounds location grid -> loops
-            | next when next |> turnRight |> wouldLoop -> walk' (Set.add (stepForward next).location loops) obstructed next
-            | next -> walk' loops obstructed next
+            | next when next = guardStart -> true
+            | next when outOfBounds next.location grid -> false
+            | next when (Set.contains next visited) -> false // looping, but does not include origin
+            | next when Set.contains next.location obstructions -> guard |> turnRight |> wouldLoop' visited
+            | next -> wouldLoop' visited next
 
-        walk' Set.empty Set.empty guard
+        wouldLoop' Set.empty guardStart
+
+    let rec walk loops guard =
+        match stepForward guard with
+        | next when Set.contains next.location grid.obstructions -> walk loops (turnRight guard)
+        | next when outOfBounds next.location grid -> loops
+        | next when wouldLoop guard ->
+            walk (Set.add next.location loops) next
+        | next ->
+            walk loops next
 
     // 656 too low
-    guard |> walk |> Set.count
+    // 993 too low
+
+    // 1534 - not it
+    // 1535 - not it
+
+    // 1719 - not it
+
+    // 1720 too high
+
+    guardOrigin
+    |> walk Set.empty
+    |> Set.remove guardOrigin.location
+    |> Set.filter (fun pt -> not (Set.contains pt grid.obstructions))
+    |> Set.filter (fun pt -> not (outOfBounds pt grid))
+    |> printfn "%A"
+    // |> Set.count
+    0
+
