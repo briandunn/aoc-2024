@@ -24,7 +24,9 @@ let main args =
                   6, 1, Six.one
                   6, 2, Six.two
                   7, 1, Seven.one
-                  7, 2, Seven.two] -> (day, puzzle), f
+                  7, 2, Seven.two
+                  8, 1, Eight.one
+                  8, 2, Eight.two] -> (day, puzzle), f
         }
         |> Map.ofSeq
 
