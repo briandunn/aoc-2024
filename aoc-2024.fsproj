@@ -13,6 +13,7 @@
     <Compile Include="Four.fs" />
     <Compile Include="Five.fs" />
     <Compile Include="Six.fs" />
+    <Compile Include="Seven.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
