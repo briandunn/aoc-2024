@@ -10,7 +10,7 @@ module List =
 
     let replaceLast last list =
         match list with
-        | [] -> [ ]
+        | [] -> []
         | _ ->
             (last :: (list |> List.rev |> List.tail))
             |> List.rev
@@ -36,36 +36,37 @@ let parse: string seq -> File seq =
 
 let one: string seq -> int =
     let rec compact files =
-        match List.tryLast files with
-        | Some ({ size = size } as src) ->
+        match List.rev files with
+        | ({ size = size } as src) :: sources ->
             match files with
             // no room
             | { gap = gap } as dest :: destRest when gap = 0 ->
                 printfn "no room"
                 dest :: (compact destRest)
             // whole file fits
-            | { gap = gap } as dest :: destRest when gap >= size ->
-                printfn "fit %A" (src, files)
+            | { gap = gap } as dest :: _ when gap >= size ->
+                printfn "fit"
+                printfn "src: %A\ndest: %A\nfiles: %A" src dest files
 
                 { dest with gap = 0 }
-                :: (({ src with gap = gap - size }
-                     :: (List.dropLast destRest))
-                    |> compact)
+                :: compact (({ src with gap = gap - size } :: List.rev sources) |> List.tail)
             // file partially fits
-            | { gap = gap } as dest :: destRest ->
-                printfn "partial fit %A" (src, files)
+            | { gap = gap } as dest :: _ ->
+                printfn "partial fit"
+                printfn "src: %A\ndest: %A\nfiles: %A" src dest files
 
                 { dest with gap = 0 }
                 :: { src with size = gap; gap = 0 }
                    :: compact (
-                       List.replaceLast
+                       List.rev (
                            { src with
                                size = size - gap
                                gap = src.gap + gap }
-                           destRest
+                           :: sources
+                       ) |> List.tail
                    )
             | [] -> []
-        | None -> []
+        | [] -> []
 
     let checksum =
         let mapi i { id = id } = id * i
