@@ -1,9 +1,19 @@
 module Eight
 
+type Pt = int * int
+
 type Grid =
-    { antennas: Map<char, Set<int * int>>
+    { antennas: Map<char, Set<Pt>>
       width: int
       height: int }
+
+let rec comb n list =
+    match n, list with
+    | 0, _ -> [ [] ]
+    | _, [] -> []
+    | _, (head :: rest) ->
+        List.map ((@) [ head ]) (comb (n - 1) rest)
+        @ comb n rest
 
 let parse lines =
     let updateDimensions grid x y =
@@ -38,10 +48,34 @@ let parse lines =
           width = 0
           height = 0 }
 
+let antinodes (x1, y1) (x2, y2) =
+    let dx = 2 * (x1 - x2)
+    let dy = 2 * (y1 - y2)
+    [ x1 - dx, y1 - dy; x2 + dx, y2 + dy ]
+
+let inBounds grid (x, y) =
+    x >= 0
+    && x < grid.width
+    && y >= 0
+    && y < grid.height
+
 let one lines =
 
-    lines |> parse |> printfn "%A"
-    // find all pairs of antennas of same frequency
-    0
+    let grid = parse lines
+
+    grid.antennas
+    |> Map.values
+    |> Seq.map (
+        Seq.toList
+        >> comb 2
+        >> List.choose (function
+            | [ a; b ] -> b |> antinodes a |> Some
+            | _ -> None)
+    )
+    |> Seq.concat
+    |> Seq.concat
+    |> Seq.filter (inBounds grid)
+    |> Set.ofSeq
+    |> Seq.length
 
 let two lines = 0
