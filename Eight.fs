@@ -48,19 +48,13 @@ let parse lines =
           width = 0
           height = 0 }
 
-let antinodes (x1, y1) (x2, y2) =
-    let dx = 2 * (x1 - x2)
-    let dy = 2 * (y1 - y2)
-    [ x1 - dx, y1 - dy; x2 + dx, y2 + dy ]
-
 let inBounds grid (x, y) =
     x >= 0
     && x < grid.width
     && y >= 0
     && y < grid.height
 
-let one lines =
-
+let solve antinodes lines =
     let grid = parse lines
 
     grid.antennas
@@ -69,13 +63,36 @@ let one lines =
         Seq.toList
         >> comb 2
         >> List.choose (function
-            | [ a; b ] -> b |> antinodes a |> Some
+            | [ a; b ] -> b |> antinodes grid a |> Some
             | _ -> None)
     )
     |> Seq.concat
     |> Seq.concat
-    |> Seq.filter (inBounds grid)
     |> Set.ofSeq
     |> Seq.length
 
-let two lines = 0
+let one: string seq -> int =
+    let antinodes grid (x1, y1) (x2, y2) =
+        let dx = 2 * (x1 - x2)
+        let dy = 2 * (y1 - y2)
+
+        [ x1 - dx, y1 - dy; x2 + dx, y2 + dy ]
+        |> Seq.filter (inBounds grid)
+
+    solve antinodes
+
+let two: string seq -> int =
+    let antinodes grid (x1, y1) (x2, y2) =
+        let dx = (x1 - x2)
+        let dy = (y1 - y2)
+
+        [ Seq.initInfinite id
+          |> Seq.map (fun m -> x1 - m * dx, y1 - m * dy)
+
+          Seq.initInfinite id
+          |> Seq.map (fun m -> x2 + m * dx, y2 + m * dy) ]
+        |> Seq.map (Seq.takeWhile (inBounds grid))
+        |> Seq.concat
+
+    // 1113 - too low
+    solve antinodes
