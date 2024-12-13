@@ -108,46 +108,42 @@ let one': string seq -> int =
         printfn "%d" x
         0)
 
-
-let toArray files =
-    seq {
-        for { size = size; id = id; gap = gap } in files do
-            yield (Array.replicate size (Some id))
-            yield (Array.replicate gap None)
-    }
-    |> Array.concat
-
-let toMap =
-    let fold (i, map) { id = id; size = size; gap = gap } =
-        let fold map (j, id) = Map.add (i + j) id map
-
-        (i + size + gap,
-         id
-         |> Seq.replicate size
-         |> Seq.indexed
-         |> Seq.fold fold map)
-
-    Seq.fold fold (0, Map.empty) >> snd
-
 let one: string seq -> int =
-    let compact disk =
-        let nextGap lastBlock disk =
-            seq { for i in 0..lastBlock -> i }
-            |> Seq.tryFind (fun i -> disk |> Map.containsKey i |> not)
+    let toMap =
+        let fold (i, map) { id = id; size = size; gap = gap } =
+            let fold map (j, id) = Map.add (i + j) id map
 
-        let rec compact' disk =
+            (i + size + gap,
+            id
+            |> Seq.replicate size
+            |> Seq.indexed
+            |> Seq.fold fold map)
+
+        Seq.fold fold (0, Map.empty) >> snd
+
+    let nextGap lastGapIndex lastBlock disk =
+        seq {
+            for i in lastGapIndex + 1 .. lastBlock do
+                if not (Map.containsKey i disk) then
+                    yield i
+        }
+        |> Seq.tryHead
+
+    let compact =
+        let rec compact' lastGapIndex disk =
             let (srcKey, src) = Map.maxKeyValue disk
-            let destKey = nextGap srcKey disk
 
-            match destKey with
-            | Some destKey ->
-                disk
-                |> Map.remove srcKey
-                |> Map.add destKey src
-                |> compact'
-            | None -> disk
+            disk
+            |> nextGap lastGapIndex srcKey
+            |> function
+                | Some destKey ->
+                    disk
+                    |> Map.remove srcKey
+                    |> Map.add destKey src
+                    |> compact' destKey
+                | None -> disk
 
-        compact' disk
+        compact' 0
 
     let checksum =
         let fold sum index id = sum + (int64 index) * (int64 id)
