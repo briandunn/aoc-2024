@@ -77,12 +77,23 @@ module Map =
         else
             map |> Map.maxKeyValue |> Some
 
+let print disk =
+    { 0 .. (disk |> Map.maxKeyValue |> fst) }
+    |> Seq.iter (fun i ->
+        disk
+        |> Map.tryFind i
+        |> function
+            | Some id -> printf "%d" id
+            | None -> printf ".")
+    printfn
+
 let two (lines: string seq) : int =
-    let firstFit size disk =
+    let firstFit { size = size; id = id } disk =
         let occupied = disk |> Map.keys |> Set.ofSeq
+        let stop = Map.findKey (fun _ v -> v = id) disk
 
         occupied
-        |> Set.difference ({ 0 .. Set.maxElement occupied } |> Set.ofSeq)
+        |> Set.difference ({ 0..stop } |> Set.ofSeq)
         |> Seq.windowed size
         |> Seq.tryFind (fun window ->
             { Array.head window .. Array.last window }
@@ -92,21 +103,16 @@ let two (lines: string seq) : int =
     let move start file disk =
         let fold disk i = Map.add i file.id disk
 
-        { start .. start + file.size - 1 }
+
+
+        { start .. start + file.size - 1
+        }
         |> Seq.fold fold (Map.filter (fun _ id -> id <> file.id) disk)
 
     let compact file disk =
-        { 0 .. (disk |> Map.maxKeyValue |> fst) }
-        |> Seq.iter (fun i ->
-            disk
-            |> Map.tryFind i
-            |> function
-                | Some id -> printf "%d" id
-                | None -> printf ".")
-        printf "\n"
 
         disk
-        |> firstFit file.size
+        |> firstFit file
         |> function
             | Some start -> move start file disk
             | None -> disk
