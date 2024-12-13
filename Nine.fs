@@ -34,10 +34,10 @@ let parse: string seq -> File seq =
             |> Some
         | _ -> None)
 
-let one: string seq -> int =
+let one': string seq -> int =
     let compact =
         let rec compact compacted files =
-            printfn "compacted: %A\nfiles:\n %A" compacted files
+            // printfn "compacted: %A\nfiles:\n %A" compacted files
 
             match List.rev files with
             | ({ size = size } as src) :: sources ->
@@ -49,7 +49,7 @@ let one: string seq -> int =
                 // whole file fits
                 | { gap = gap } as dest :: _ when gap > size ->
                     printfn "fit"
-                    printfn "src: %A\ndest: %A" src dest
+                    // printfn "src: %A\ndest: %A" src dest
 
                     compact
                         ({ dest with gap = 0 } :: compacted)
@@ -60,7 +60,7 @@ let one: string seq -> int =
                 | { gap = gap } as dest :: _ when gap = size ->
                     printfn "exact fit"
 
-                    printfn "src: %A\ndest: %A" src dest
+                    // printfn "src: %A\ndest: %A" src dest
 
                     compact
                         ({ src with size = gap; gap = 0 }
@@ -70,7 +70,7 @@ let one: string seq -> int =
                 | { gap = gap } as dest :: _ ->
                     printfn "partial fit"
 
-                    printfn "src: %A\ndest: %A" src dest
+                    // printfn "src: %A\ndest: %A" src dest
 
                     compact
                         ({ src with size = gap; gap = 0 }
@@ -92,15 +92,72 @@ let one: string seq -> int =
         compact []
 
     let checksum =
-        let mapi i { id = id } = id * i
+        let fold acc { id = id; size = size } = acc @ List.replicate size (int64 id)
 
-        (function
-        | files ->
-            printfn "result: %A" files
-            files)
-        >> Seq.mapi mapi
+        Seq.fold fold []
+        >> Seq.mapi (fun i id -> (int64 i) * id)
         >> Seq.sum
 
-    parse >> Seq.toList >> compact >> checksum
+    // 5839967396819 - too low
+
+    parse
+    >> Seq.toList
+    >> compact
+    >> checksum
+    >> (fun x ->
+        printfn "%d" x
+        0)
+
+
+let toArray files =
+    seq {
+        for { size = size; id = id; gap = gap } in files do
+            yield (Array.replicate size (Some id))
+            yield (Array.replicate gap None)
+    }
+    |> Array.concat
+
+let toMap =
+    let fold (i, map) { id = id; size = size; gap = gap } =
+        let fold map (j, id) = Map.add (i + j) id map
+
+        (i + size + gap,
+         id
+         |> Seq.replicate size
+         |> Seq.indexed
+         |> Seq.fold fold map)
+
+    Seq.fold fold (0, Map.empty) >> snd
+
+let one: string seq -> int =
+    let compact disk =
+        let nextGap lastBlock disk =
+            seq { for i in 0..lastBlock -> i }
+            |> Seq.tryFind (fun i -> disk |> Map.containsKey i |> not)
+
+        let rec compact' disk =
+            let (srcKey, src) = Map.maxKeyValue disk
+            let destKey = nextGap srcKey disk
+
+            match destKey with
+            | Some destKey ->
+                disk
+                |> Map.remove srcKey
+                |> Map.add destKey src
+                |> compact'
+            | None -> disk
+
+        compact' disk
+
+    let checksum =
+        let fold sum index id = sum + (int64 index) * (int64 id)
+        Map.fold fold 0L
+
+    parse
+    >> toMap
+    >> compact
+    >> checksum
+    >> printfn "%A"
+    >> (fun _ -> 0)
 
 let two lines = 0
