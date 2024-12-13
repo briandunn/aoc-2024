@@ -2,19 +2,6 @@ module Nine
 
 type File = { id: int; size: int; gap: int }
 
-module List =
-    let dropLast list =
-        match list with
-        | [] -> []
-        | _ -> list |> List.rev |> List.tail |> List.rev
-
-    let replaceLast last list =
-        match list with
-        | [] -> []
-        | _ ->
-            (last :: (list |> List.rev |> List.tail))
-            |> List.rev
-
 let parse: string seq -> File seq =
     Seq.tryExactlyOne
     >> Option.map String.chars
@@ -34,92 +21,23 @@ let parse: string seq -> File seq =
             |> Some
         | _ -> None)
 
-let one': string seq -> int =
-    let compact =
-        let rec compact compacted files =
-            // printfn "compacted: %A\nfiles:\n %A" compacted files
+let toMap =
+    let fold (i, map) { id = id; size = size; gap = gap } =
+        let fold map (j, id) = Map.add (i + j) id map
 
-            match List.rev files with
-            | ({ size = size } as src) :: sources ->
-                match List.rev sources with
-                // no room
-                | { gap = gap } as dest :: destinations when gap = 0 ->
-                    printfn "no room"
-                    compact (dest :: compacted) destinations
-                // whole file fits
-                | { gap = gap } as dest :: _ when gap > size ->
-                    printfn "fit"
-                    // printfn "src: %A\ndest: %A" src dest
+        (i + size + gap,
+         id
+         |> Seq.replicate size
+         |> Seq.indexed
+         |> Seq.fold fold map)
 
-                    compact
-                        ({ dest with gap = 0 } :: compacted)
-                        ({ src with gap = gap - size }
-                         :: (List.tail (List.rev sources)))
+    Seq.fold fold (0, Map.empty) >> snd
 
-                // file exactly fits
-                | { gap = gap } as dest :: _ when gap = size ->
-                    printfn "exact fit"
-
-                    // printfn "src: %A\ndest: %A" src dest
-
-                    compact
-                        ({ src with size = gap; gap = 0 }
-                         :: { dest with gap = 0 } :: compacted)
-                        (List.rev sources |> List.tail)
-                // file partially fits
-                | { gap = gap } as dest :: _ ->
-                    printfn "partial fit"
-
-                    // printfn "src: %A\ndest: %A" src dest
-
-                    compact
-                        ({ src with size = gap; gap = 0 }
-                         :: { dest with gap = 0 } :: compacted)
-                        (List.rev (
-                            { src with
-                                size = size - gap
-                                gap = src.gap + gap }
-                            :: sources
-                         )
-                         |> List.tail)
-                | [] ->
-                    printfn "no more destinations"
-                    List.rev compacted @ files
-            | [] ->
-                printfn "no more sources"
-                List.rev compacted @ files
-
-        compact []
-
-    let checksum =
-        let fold acc { id = id; size = size } = acc @ List.replicate size (int64 id)
-
-        Seq.fold fold []
-        >> Seq.mapi (fun i id -> (int64 i) * id)
-        >> Seq.sum
-
-    // 5839967396819 - too low
-
-    parse
-    >> Seq.toList
-    >> compact
-    >> checksum
-    >> (fun x ->
-        printfn "%d" x
-        0)
+let checksum =
+    let fold sum index id = sum + (int64 index) * (int64 id)
+    Map.fold fold 0L
 
 let one: string seq -> int =
-    let toMap =
-        let fold (i, map) { id = id; size = size; gap = gap } =
-            let fold map (j, id) = Map.add (i + j) id map
-
-            (i + size + gap,
-            id
-            |> Seq.replicate size
-            |> Seq.indexed
-            |> Seq.fold fold map)
-
-        Seq.fold fold (0, Map.empty) >> snd
 
     let nextGap lastGapIndex lastBlock disk =
         seq {
@@ -145,10 +63,6 @@ let one: string seq -> int =
 
         compact' 0
 
-    let checksum =
-        let fold sum index id = sum + (int64 index) * (int64 id)
-        Map.fold fold 0L
-
     parse
     >> toMap
     >> compact
@@ -156,4 +70,54 @@ let one: string seq -> int =
     >> printfn "%A"
     >> (fun _ -> 0)
 
-let two lines = 0
+module Map =
+    let tryMaxKeyValue map =
+        if Map.isEmpty map then
+            None
+        else
+            map |> Map.maxKeyValue |> Some
+
+let two (lines: string seq) : int =
+    let firstFit size disk =
+        let occupied = disk |> Map.keys |> Set.ofSeq
+
+        occupied
+        |> Set.difference ({ 0 .. Set.maxElement occupied } |> Set.ofSeq)
+        |> Seq.windowed size
+        |> Seq.tryFind (fun window ->
+            { Array.head window .. Array.last window }
+            |> Seq.forall2 (=) window)
+        |> Option.map Array.head
+
+    let move start file disk =
+        let fold disk i = Map.add i file.id disk
+
+        { start .. start + file.size - 1 }
+        |> Seq.fold fold (Map.filter (fun _ id -> id <> file.id) disk)
+
+    let compact file disk =
+        { 0 .. (disk |> Map.maxKeyValue |> fst) }
+        |> Seq.iter (fun i ->
+            disk
+            |> Map.tryFind i
+            |> function
+                | Some id -> printf "%d" id
+                | None -> printf ".")
+        printf "\n"
+
+        disk
+        |> firstFit file.size
+        |> function
+            | Some start -> move start file disk
+            | None -> disk
+
+    let disk = parse lines
+
+    disk
+    |> toMap
+    |> Seq.foldBack compact disk
+    |> checksum
+    |> printfn "%A"
+
+    // disc |> compact
+    0
