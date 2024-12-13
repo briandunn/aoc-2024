@@ -35,38 +35,61 @@ let parse: string seq -> File seq =
         | _ -> None)
 
 let one: string seq -> int =
-    let rec compact files =
-        match List.rev files with
-        | ({ size = size } as src) :: sources ->
-            match files with
-            // no room
-            | { gap = gap } as dest :: destRest when gap = 0 ->
-                printfn "no room"
-                dest :: (compact destRest)
-            // whole file fits
-            | { gap = gap } as dest :: _ when gap >= size ->
-                printfn "fit"
-                printfn "src: %A\ndest: %A\nfiles: %A" src dest files
+    let compact =
+        let rec compact compacted files =
+            printfn "compacted: %A\nfiles:\n %A" compacted files
 
-                { dest with gap = 0 }
-                :: compact (({ src with gap = gap - size } :: List.rev sources) |> List.tail)
-            // file partially fits
-            | { gap = gap } as dest :: _ ->
-                printfn "partial fit"
-                printfn "src: %A\ndest: %A\nfiles: %A" src dest files
+            match List.rev files with
+            | ({ size = size } as src) :: sources ->
+                match List.rev sources with
+                // no room
+                | { gap = gap } as dest :: destinations when gap = 0 ->
+                    printfn "no room"
+                    compact (dest :: compacted) destinations
+                // whole file fits
+                | { gap = gap } as dest :: _ when gap > size ->
+                    printfn "fit"
+                    printfn "src: %A\ndest: %A" src dest
 
-                { dest with gap = 0 }
-                :: { src with size = gap; gap = 0 }
-                   :: compact (
-                       List.rev (
-                           { src with
-                               size = size - gap
-                               gap = src.gap + gap }
-                           :: sources
-                       ) |> List.tail
-                   )
-            | [] -> []
-        | [] -> []
+                    compact
+                        ({ dest with gap = 0 } :: compacted)
+                        ({ src with gap = gap - size }
+                         :: (List.tail (List.rev sources)))
+
+                // file exactly fits
+                | { gap = gap } as dest :: _ when gap = size ->
+                    printfn "exact fit"
+
+                    printfn "src: %A\ndest: %A" src dest
+
+                    compact
+                        ({ src with size = gap; gap = 0 }
+                         :: { dest with gap = 0 } :: compacted)
+                        (List.rev sources |> List.tail)
+                // file partially fits
+                | { gap = gap } as dest :: _ ->
+                    printfn "partial fit"
+
+                    printfn "src: %A\ndest: %A" src dest
+
+                    compact
+                        ({ src with size = gap; gap = 0 }
+                         :: { dest with gap = 0 } :: compacted)
+                        (List.rev (
+                            { src with
+                                size = size - gap
+                                gap = src.gap + gap }
+                            :: sources
+                         )
+                         |> List.tail)
+                | [] ->
+                    printfn "no more destinations"
+                    List.rev compacted @ files
+            | [] ->
+                printfn "no more sources"
+                List.rev compacted @ files
+
+        compact []
 
     let checksum =
         let mapi i { id = id } = id * i
