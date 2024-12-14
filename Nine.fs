@@ -70,23 +70,18 @@ let one: string seq -> int =
     >> printfn "%A"
     >> (fun _ -> 0)
 
-module Map =
-    let tryMaxKeyValue map =
-        if Map.isEmpty map then
-            None
-        else
-            map |> Map.maxKeyValue |> Some
-
 let print disk =
-    { 0 .. (disk |> Map.maxKeyValue |> fst) }
+    seq { 0 .. (disk |> Map.maxKeyValue |> fst) }
     |> Seq.iter (fun i ->
         disk
         |> Map.tryFind i
         |> function
             | Some id -> printf "%d" id
             | None -> printf ".")
+
     printfn
 
+// keep a map of id -> blocks?
 let two (lines: string seq) : int =
     let firstFit { size = size; id = id } disk =
         let occupied = disk |> Map.keys |> Set.ofSeq
@@ -103,10 +98,7 @@ let two (lines: string seq) : int =
     let move start file disk =
         let fold disk i = Map.add i file.id disk
 
-
-
-        { start .. start + file.size - 1
-        }
+        seq { start .. start + file.size - 1 }
         |> Seq.fold fold (Map.filter (fun _ id -> id <> file.id) disk)
 
     let compact file disk =
