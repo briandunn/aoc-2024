@@ -88,7 +88,7 @@ let two (lines: string seq) : int =
         let stop = Map.findKey (fun _ v -> v = id) disk
 
         occupied
-        |> Set.difference ({ 0..stop } |> Set.ofSeq)
+        |> Set.difference (seq { 0..stop } |> Set.ofSeq)
         |> Seq.windowed size
         |> Seq.tryFind (fun window ->
             { Array.head window .. Array.last window }
