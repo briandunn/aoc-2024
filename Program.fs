@@ -30,7 +30,9 @@ let main args =
                   9, 1, Nine.one
                   9, 2, Nine.two
                   10, 1, Ten.one
-                  10, 2, Ten.two ] -> (day, puzzle), f
+                  10, 2, Ten.two
+                  11, 1, Eleven.one
+                  11, 2, Eleven.two ] -> (day, puzzle), f
         }
         |> Map.ofSeq
 
