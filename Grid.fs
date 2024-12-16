@@ -6,7 +6,7 @@ let flatten (grid: 'a [,]) = Seq.cast<'a> grid
 
 let mapi = Array2D.mapi
 
-let item (x, y) grid =
+let tryItem (x, y) grid =
     if Array2D.length1 grid > x
        && Array2D.length2 grid > y
        && x >= 0
@@ -15,8 +15,21 @@ let item (x, y) grid =
     else
         None
 
-let tryFindCoords(predicate: 'a -> bool) (grid: 'a Grid) : (int*int) option =
-    grid |>Seq.cast<'a> |> Seq.tryFindIndex predicate |> Option.map (fun i -> (i / Array2D.length2 grid, i % Array2D.length2 grid))
+let private indexToCoords index (grid: 'a [,]) =
+    ( index / Array2D.length1 grid,index % Array2D.length1 grid)
+
+let filter (predicate: 'a -> bool) (grid: 'a Grid) : (int * int) seq =
+    grid
+    |> flatten
+    |> Seq.indexed
+    |> Seq.filter (fun (_, cell) -> predicate cell)
+    |> Seq.map (fun (i, _) -> indexToCoords i grid)
+
+let tryFindCoords (predicate: 'a -> bool) (grid: 'a Grid) : (int * int) option =
+    grid
+    |> flatten
+    |> Seq.tryFindIndex predicate
+    |> Option.map (fun i -> indexToCoords i grid)
 
 let fromSeq (rows: 'a seq seq) : 'a Grid =
     let rows = rows |> Seq.toArray
@@ -35,4 +48,4 @@ let fromLines (map: char -> 'a) (lines: string seq) : 'a Grid =
         |> Seq.map (fun line -> line.ToCharArray())
         |> Seq.toArray
 
-    Array2D.init (Array.length rows) (Array.length rows.[0]) (fun i j -> map (rows.[i].[j]))
+    Array2D.init (Array.length rows.[0]) (Array.length rows) (fun x y -> map (rows.[y].[x]))

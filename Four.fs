@@ -30,7 +30,7 @@ let one lines =
             let choose start letter direction =
                 let pt = offSet start direction
 
-                match Grid.item pt grid with
+                match Grid.tryItem pt grid with
                 | Some letter' when letter = letter' -> Some(direction, pt)
                 | _ -> None
 
@@ -53,7 +53,7 @@ let two lines =
         function
         | 'A' ->
             let filter =
-                List.choose (fun direction -> Grid.item (offSet (x, y) direction) grid)
+                List.choose (fun direction -> Grid.tryItem (offSet (x, y) direction) grid)
                 >> Set.ofList
                 >> ((=) (Set.ofList [ 'M'; 'S' ]))
 
