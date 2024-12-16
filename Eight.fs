@@ -11,9 +11,7 @@ let rec comb n list =
     match n, list with
     | 0, _ -> [ [] ]
     | _, [] -> []
-    | _, (head :: rest) ->
-        List.map ((@) [ head ]) (comb (n - 1) rest)
-        @ comb n rest
+    | _, (head :: rest) -> List.map ((@) [ head ]) (comb (n - 1) rest) @ comb n rest
 
 let parse lines =
     let updateDimensions grid x y =
@@ -49,10 +47,7 @@ let parse lines =
           height = 0 }
 
 let inBounds grid (x, y) =
-    x >= 0
-    && x < grid.width
-    && y >= 0
-    && y < grid.height
+    x >= 0 && x < grid.width && y >= 0 && y < grid.height
 
 let solve antinodes lines =
     let grid = parse lines
@@ -76,8 +71,7 @@ let one: string seq -> int =
         let dx = 2 * (x1 - x2)
         let dy = 2 * (y1 - y2)
 
-        [ x1 - dx, y1 - dy; x2 + dx, y2 + dy ]
-        |> Seq.filter (inBounds grid)
+        [ x1 - dx, y1 - dy; x2 + dx, y2 + dy ] |> Seq.filter (inBounds grid)
 
     solve antinodes
 
@@ -86,11 +80,9 @@ let two: string seq -> int =
         let dx = (x1 - x2)
         let dy = (y1 - y2)
 
-        [ Seq.initInfinite id
-          |> Seq.map (fun m -> x1 - m * dx, y1 - m * dy)
+        [ Seq.initInfinite id |> Seq.map (fun m -> x1 - m * dx, y1 - m * dy)
 
-          Seq.initInfinite id
-          |> Seq.map (fun m -> x2 + m * dx, y2 + m * dy) ]
+          Seq.initInfinite id |> Seq.map (fun m -> x2 + m * dx, y2 + m * dy) ]
         |> Seq.map (Seq.takeWhile (inBounds grid))
         |> Seq.concat
 

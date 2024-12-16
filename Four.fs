@@ -43,10 +43,7 @@ let one lines =
 
     let grid = parse lines
 
-    grid
-    |> Grid.mapi (countAt grid)
-    |> Grid.flatten
-    |> Seq.sum
+    grid |> Grid.mapi (countAt grid) |> Grid.flatten |> Seq.sum
 
 let two lines =
     let countAt grid x y =
@@ -65,7 +62,4 @@ let two lines =
 
     let grid = parse lines
 
-    grid
-    |> Grid.mapi (countAt grid)
-    |> Grid.flatten
-    |> Seq.sum
+    grid |> Grid.mapi (countAt grid) |> Grid.flatten |> Seq.sum

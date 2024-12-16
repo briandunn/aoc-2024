@@ -17,9 +17,7 @@ let one: string seq -> int =
         | [ _ ] -> true
         | _ -> false
 
-    parse
-    >> Seq.filter (Seq.toList >> isSafe)
-    >> Seq.length
+    parse >> Seq.filter (Seq.toList >> isSafe) >> Seq.length
 
 type Dampened =
     | First
@@ -47,6 +45,4 @@ let two: string seq -> int =
         | [ last ] -> last :: safe, []
         | rest -> safe, rest
 
-    parse
-    >> Seq.filter (Seq.toList >> (isSafe Set.empty))
-    >> Seq.length
+    parse >> Seq.filter (Seq.toList >> (isSafe Set.empty)) >> Seq.length

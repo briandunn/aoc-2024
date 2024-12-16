@@ -20,10 +20,7 @@ let one lines =
     let grid = lines |> Grid.fromLines (string >> int)
 
     let neighbors (x, y) =
-        [ x - 1, y
-          x + 1, y
-          x, y - 1
-          x, y + 1 ]
+        [ x - 1, y; x + 1, y; x, y - 1; x, y + 1 ]
 
     let paths start =
         let rec paths' complete =
@@ -32,31 +29,43 @@ let one lines =
                 let nexts =
                     start
                     |> neighbors
-                    |> List.filter (fun neighbor ->
+                    |> List.choose (fun neighbor ->
                         grid
                         |> Grid.tryItem neighbor
                         |> Option.filter ((=) (level + 1))
-                        |> Option.isSome)
+                        |> Option.map (fun _ -> neighbor))
 
 
-                paths' complete
-                    ((List.map (fun next -> (next, (level + 1)) :: path) nexts)
-                     @ paths)
-            | summit::paths -> paths' (summit :: complete) paths
+                paths' complete ((List.map (fun next -> (next, (level + 1)) :: path) nexts) @ paths)
+            | summit :: paths -> paths' (summit :: complete) paths
             | [] -> complete |> Seq.map (List.head) |> Set.ofSeq
 
-        paths' [] [ [ start,0 ] ]
+        paths' [] [ [ start, 0 ] ]
 
-    printfn "%A" grid
+    grid |> Grid.filter ((=) 0) |> Seq.map paths |> Seq.concat |> Seq.length
 
-    grid
-    |> Grid.filter ((=) 0)
-    |> Seq.sortBy snd
-    // |> Seq.take 1
-    |> Seq.map paths
-    |> Seq.concat
-    |> Seq.length
-    |> printfn "%A"
-    0
+let two lines =
+    let grid = lines |> Grid.fromLines (string >> int)
 
-let two lines = 0
+    let neighbors (x, y) =
+        [ x - 1, y; x + 1, y; x, y - 1; x, y + 1 ]
+
+    let paths start =
+        let rec paths' complete =
+            function
+            | (((start, level) :: _) as path) :: paths when level < 9 ->
+                let choose neighbor =
+                    let nextLevel = level + 1
+
+                    grid
+                    |> Grid.tryItem neighbor
+                    |> Option.filter ((=) nextLevel)
+                    |> Option.map (fun _ -> (neighbor, nextLevel) :: path)
+
+                start |> neighbors |> List.choose choose |> List.append paths |> paths' complete
+            | summit :: paths -> paths' (summit :: complete) paths
+            | [] -> complete
+
+        paths' [] [ [ start, 0 ] ]
+
+    grid |> Grid.filter ((=) 0) |> Seq.map (paths >> Seq.length) |> Seq.sum

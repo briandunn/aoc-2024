@@ -13,21 +13,21 @@ let parse: string seq -> Input =
         match section with
         | Rules ->
             match line |> String.split "\|" |> Seq.toList with
-            | [ a; b ] -> section, { input with rules = (int a, int b) :: input.rules }
+            | [ a; b ] ->
+                section,
+                { input with
+                    rules = (int a, int b) :: input.rules }
             | l -> (Updates, input)
         | Updates ->
             (section,
              { input with
-                 updates =
-                     (line
-                      |> String.split ","
-                      |> Seq.map int
-                      |> Seq.toList)
-                     :: input.updates })
+                 updates = (line |> String.split "," |> Seq.map int |> Seq.toList) :: input.updates })
 
     Seq.fold fold (Rules, { rules = []; updates = [] })
     >> function
-        | (_, input) -> { input with updates = List.rev input.updates }
+        | (_, input) ->
+            { input with
+                updates = List.rev input.updates }
 
 let middle update =
     List.item ((List.length update) / 2) update
@@ -63,10 +63,7 @@ let one lines =
         | [] -> true
         | _ -> false
 
-    input.updates
-    |> List.filter isCorrect
-    |> List.map middle
-    |> List.sum
+    input.updates |> List.filter isCorrect |> List.map middle |> List.sum
 
 let two lines =
     let input = parse lines
@@ -74,16 +71,17 @@ let two lines =
     let rules = toRuleMap input.rules
 
     let sortWith a b =
-      match Map.tryFind a rules with
-      | Some afters when Set.contains b afters -> -1
-      | Some _ | None ->
-        match Map.tryFind b rules with
-        | Some afters when Set.contains a afters -> 1
-        | _ -> 0
+        match Map.tryFind a rules with
+        | Some afters when Set.contains b afters -> -1
+        | Some _
+        | None ->
+            match Map.tryFind b rules with
+            | Some afters when Set.contains a afters -> 1
+            | _ -> 0
 
     let correct update =
-      let corrected = List.sortWith sortWith update
-      if update = corrected then None else Some corrected
+        let corrected = List.sortWith sortWith update
+        if update = corrected then None else Some corrected
 
     let fold corrected =
         correct
@@ -91,7 +89,4 @@ let two lines =
             | Some update -> update :: corrected
             | None -> corrected
 
-    input.updates
-    |> List.fold fold []
-    |> List.map middle
-    |> List.sum
+    input.updates |> List.fold fold [] |> List.map middle |> List.sum

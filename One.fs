@@ -17,17 +17,12 @@ let parse: string seq -> int list * int list =
 let one lines =
     let (ls, rs) = parse lines
 
-    List.map2 (fun l r -> abs (l - r)) (List.sort ls) (List.sort rs)
-    |> List.sum
+    List.map2 (fun l r -> abs (l - r)) (List.sort ls) (List.sort rs) |> List.sum
 
 let two lines =
     let (ls, rs) = parse lines
     let freq = rs |> List.countBy id |> Map.ofList
 
     ls
-    |> List.map (fun i ->
-        freq
-        |> Map.tryFind i
-        |> Option.defaultValue 0
-        |> (*) i)
+    |> List.map (fun i -> freq |> Map.tryFind i |> Option.defaultValue 0 |> (*) i)
     |> List.sum

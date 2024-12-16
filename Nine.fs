@@ -25,11 +25,7 @@ let toMap =
     let fold (i, map) { id = id; size = size; gap = gap } =
         let fold map (j, id) = Map.add (i + j) id map
 
-        (i + size + gap,
-         id
-         |> Seq.replicate size
-         |> Seq.indexed
-         |> Seq.fold fold map)
+        (i + size + gap, id |> Seq.replicate size |> Seq.indexed |> Seq.fold fold map)
 
     Seq.fold fold (0, Map.empty) >> snd
 
@@ -54,21 +50,12 @@ let one: string seq -> int =
             disk
             |> nextGap lastGapIndex srcKey
             |> function
-                | Some destKey ->
-                    disk
-                    |> Map.remove srcKey
-                    |> Map.add destKey src
-                    |> compact' destKey
+                | Some destKey -> disk |> Map.remove srcKey |> Map.add destKey src |> compact' destKey
                 | None -> disk
 
         compact' 0
 
-    parse
-    >> toMap
-    >> compact
-    >> checksum
-    >> printfn "%A"
-    >> (fun _ -> 0)
+    parse >> toMap >> compact >> checksum >> printfn "%A" >> (fun _ -> 0)
 
 let print disk =
     seq { 0 .. (disk |> Map.maxKeyValue |> fst) }
@@ -90,9 +77,7 @@ let two (lines: string seq) : int =
         occupied
         |> Set.difference (seq { 0..stop } |> Set.ofSeq)
         |> Seq.windowed size
-        |> Seq.tryFind (fun window ->
-            { Array.head window .. Array.last window }
-            |> Seq.forall2 (=) window)
+        |> Seq.tryFind (fun window -> { Array.head window .. Array.last window } |> Seq.forall2 (=) window)
         |> Option.map Array.head
 
     let move start file disk =
@@ -111,11 +96,7 @@ let two (lines: string seq) : int =
 
     let disk = parse lines
 
-    disk
-    |> toMap
-    |> Seq.foldBack compact disk
-    |> checksum
-    |> printfn "%A"
+    disk |> toMap |> Seq.foldBack compact disk |> checksum |> printfn "%A"
 
     // disc |> compact
     0

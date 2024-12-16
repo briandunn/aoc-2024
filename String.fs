@@ -1,8 +1,7 @@
 module String
 
 let split pattern string =
-    System.Text.RegularExpressions.Regex.Split(string, pattern)
-    |> Array.toSeq
+    System.Text.RegularExpressions.Regex.Split(string, pattern) |> Array.toSeq
 
 let parseInt (string: string) = System.Convert.ToInt32(string)
 

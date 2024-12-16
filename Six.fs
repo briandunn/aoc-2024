@@ -32,7 +32,10 @@ let parse lines =
         let grid = updateDimensions grid cell
 
         match cell with
-        | (x, y, '#') -> (guard, { grid with obstructions = Set.add (x, y) grid.obstructions })
+        | (x, y, '#') ->
+            (guard,
+             { grid with
+                 obstructions = Set.add (x, y) grid.obstructions })
         | (x, y, '^') -> (Some { location = (x, y); direction = N }, grid)
         | _ -> acc
 
@@ -74,10 +77,7 @@ let turnRight ({ direction = direction } as guard) =
             | W -> N }
 
 let outOfBounds (x, y) grid =
-    x = grid.width
-    || y = grid.height
-    || x < 0
-    || y < 0
+    x = grid.width || y = grid.height || x < 0 || y < 0
 
 let one: (string seq) -> int =
     let walk { guard = guard; grid = grid } =

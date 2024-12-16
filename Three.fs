@@ -5,15 +5,10 @@ let one: string seq -> int =
         let map (m: System.Text.RegularExpressions.Match) =
             String.parseInt m.Groups.[1].Value, String.parseInt m.Groups.[2].Value
 
-        System
-            .Text
-            .RegularExpressions
-            .Regex("mul\((\d+),(\d+)\)")
-            .Matches(line)
+        System.Text.RegularExpressions.Regex("mul\((\d+),(\d+)\)").Matches(line)
         |> Seq.map map
 
-    Seq.map (parse >> Seq.map (fun (x, y) -> x * y) >> Seq.sum)
-    >> Seq.sum
+    Seq.map (parse >> Seq.map (fun (x, y) -> x * y) >> Seq.sum) >> Seq.sum
 
 type Instruction =
     | Mul of int * int
@@ -34,9 +29,7 @@ let two: string seq -> int =
                 | Some "dont" -> Some Don't
                 | _ -> None
 
-        System
-            .Text
-            .RegularExpressions
+        System.Text.RegularExpressions
             .Regex("(?<mul>mul\((\d+),(\d+)\))|(?<do>do\(\))|(?<dont>don't\(\))")
             .Matches(line)
         |> Seq.choose map
@@ -44,7 +37,7 @@ let two: string seq -> int =
     let foldAll =
         let foldLine (enabled, sum) =
             function
-            | Mul (x, y) when enabled -> (true, sum + x * y)
+            | Mul(x, y) when enabled -> (true, sum + x * y)
             | Mul _ -> (false, sum)
             | Do -> (true, sum)
             | Don't -> (false, sum)
