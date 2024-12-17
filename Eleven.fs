@@ -7,12 +7,12 @@ let parse =
 
 let isEven n = n % 2 = 0
 
-let blinkOne map =
-    let inc count =
-        function
-        | Some n -> Some(n + count)
-        | None -> Some count
+let inc count =
+    function
+    | Some n -> Some(n + count)
+    | None -> Some count
 
+let blinkOne =
     let fold acc (stone, count) =
         match stone with
         | 0L -> acc |> Map.change 1L (inc count)
@@ -25,19 +25,12 @@ let blinkOne map =
             |> Seq.fold (fun acc stone -> Map.change stone (inc count) acc) acc
         | n -> acc |> Map.change (n * 2024L) (inc count)
 
-    map |> Map.toSeq |> Seq.fold fold Map.empty
+    Map.toSeq >> Seq.fold fold Map.empty
 
+let intoMap =
+    let fold map stone = Map.change stone (inc 1L) map
 
-let intoMap map =
-    let fold map stone =
-        let change =
-            function
-            | Some n -> Some(n + 1L)
-            | None -> Some 1L
-
-        Map.change stone change map
-
-    Seq.fold fold map
+    Seq.fold fold
 
 let toMap = intoMap Map.empty
 
