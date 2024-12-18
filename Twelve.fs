@@ -45,6 +45,43 @@ let printEdges vertical horizontal garden =
     |> ignore
 
 
+let gatherRegions garden =
+    let allPlots =
+        seq {
+            for x in 0 .. (Array2D.length1 garden - 1) do
+                for y in 0 .. (Array2D.length2 garden - 1) -> x, y
+        }
+        |> Set.ofSeq
+
+    let rec gatherRegion region pt =
+        garden
+        |> Grid.tryItem pt
+        |> Option.filter ((=) region.plant)
+        |> function
+            | Some _ ->
+                let plots = Set.add pt region.plots
+
+                plots
+                |> Set.difference (Set.map (neighbor pt) directions)
+                |> Set.fold gatherRegion { region with plots = plots }
+            | None -> region
+
+    let rec gatherRegions unvisited regions =
+        match Set.isEmpty unvisited with
+        | true -> regions
+        | false ->
+            let (x, y) = Seq.head unvisited
+
+            let region =
+                gatherRegion
+                    { plant = garden[x, y]
+                      plots = Set.empty }
+                    (x, y)
+
+            gatherRegions (Set.difference unvisited region.plots) (region :: regions)
+
+    gatherRegions allPlots []
+
 let one lines =
     let garden = lines |> Grid.fromLines id
 
@@ -70,44 +107,7 @@ let one lines =
 
     let horizontalEdges = findEdges Array2D.length2 Array2D.length1 (fun (x, y) -> y, x)
 
-    let rec gatherRegion region pt =
-        garden
-        |> Grid.tryItem pt
-        |> Option.filter ((=) region.plant)
-        |> function
-            | Some _ ->
-                let plots = Set.add pt region.plots
-
-                plots
-                |> Set.difference (Set.map (neighbor pt) directions)
-                |> Set.fold gatherRegion { region with plots = plots }
-            | None -> region
-
-    let allPlots =
-        seq {
-            for x in 0 .. (Array2D.length1 garden - 1) do
-                for y in 0 .. (Array2D.length2 garden - 1) -> x, y
-        }
-        |> Set.ofSeq
-
-    let rec gatherRegions regions =
-        let unvisited =
-            Set.difference allPlots (Set.unionMany (regions |> List.map (fun r -> r.plots)))
-
-        match Set.isEmpty unvisited with
-        | true -> regions
-        | false ->
-            let (x, y) = Seq.head unvisited
-
-            let region =
-                gatherRegion
-                    { plant = garden[x, y]
-                      plots = Set.empty }
-                    (x, y)
-
-            gatherRegions (region :: regions)
-
-    let regions = gatherRegions []
+    let regions = gatherRegions garden
 
     let countEdges region =
         let map (edges, neighborDirection) =
@@ -133,4 +133,7 @@ let one lines =
 
     0
 
-let two lines = 0
+let two lines =
+    let garden = lines |> Grid.fromLines id
+    gatherRegions garden |> List.length |> printfn "%A"
+    0
