@@ -8,7 +8,6 @@ type Direction =
     | S
     | W
 
-type Plot = { edges: Direction Set; pt: Pt }
 type Region = { plant: char; plots: Pt Set }
 
 let directions = Set.ofList [ N; E; S; W ]
@@ -19,31 +18,6 @@ let neighbor (x, y) =
     | E -> (x + 1, y)
     | S -> (x, y + 1)
     | W -> (x - 1, y)
-
-let opposite =
-    function
-    | N -> S
-    | E -> W
-    | S -> N
-    | W -> E
-
-let printEdges vertical horizontal garden =
-    seq {
-        for y in 0 .. (Array2D.length2 garden - 1) do
-            for x in 0 .. (Array2D.length1 garden - 1) do
-                let pt = (x, y)
-
-                match Set.contains pt vertical, Set.contains pt horizontal with
-                | true, true -> printf "+"
-                | true, false -> printf "|"
-                | false, true -> printf "-"
-                | false, false -> printf " "
-
-            printf "\n"
-    }
-    |> Seq.toList
-    |> ignore
-
 
 let gatherRegions garden =
     let allPlots =
@@ -81,59 +55,18 @@ let gatherRegions garden =
             gatherRegions (Set.difference unvisited region.plots) (region :: regions)
 
     gatherRegions allPlots []
+let one : string seq -> int =
+    let traceEdges {plots = plots} =
+        let fold count plot =
+            let isBlocked direction = plots |> Set.contains (neighbor plot direction) |> not
 
-let one lines =
-    let garden = lines |> Grid.fromLines id
+            count + (directions |> Set.filter isBlocked |> Set.count)
 
-    let findEdges max1 max2 mapPoint =
-        let foldColumns edges y =
-            let fold (plant, edges) x =
-                let pt = mapPoint (x, y)
+        Set.fold fold 0 plots
 
-                match plant, Grid.tryItem pt garden with
-                | Some previousPlant, Some currentPlant when previousPlant = currentPlant -> Some currentPlant, edges
-                | Some _, Some currentPlant -> Some currentPlant, Set.add pt edges
-                | None, Some currentPlant -> Some currentPlant, edges
-                | _, None -> None, Set.add pt edges
+    Grid.fromLines id
+    >> gatherRegions
+    >> List.map (fun region -> (traceEdges region) * (Set.count region.plots))
+    >> List.sum
 
-            seq { 0 .. (max2 garden) - 1 }
-            |> Seq.fold fold (None, edges)
-            |> snd
-            |> Set.union edges
-
-        seq { 0 .. (max1 garden) - 1 } |> Seq.fold foldColumns Set.empty
-
-    let verticalEdges = findEdges Array2D.length1 Array2D.length2 id
-
-    let horizontalEdges = findEdges Array2D.length2 Array2D.length1 (fun (x, y) -> y, x)
-
-    let regions = gatherRegions garden
-
-    let countEdges region =
-        let map (edges, neighborDirection) =
-            let fold sum pt =
-                sum
-                + (edges
-                   |> Set.intersect (Set.ofList [ pt; neighbor pt neighborDirection ])
-                   |> Set.count)
-                + (2
-                   - ([ neighbor pt neighborDirection; neighbor pt (opposite neighborDirection) ]
-                      |> List.choose (fun pt -> garden |> Grid.tryItem pt)
-                      |> List.length))
-
-            region.plots |> Set.fold fold 0
-
-        [ verticalEdges, E; horizontalEdges, S ] |> List.map map |> List.sum
-
-    // regions |> List.iter (fun region -> printfn "plant: %c perimiter: %d\tarea: %d" region.plant (countEdges region)  (Set.count region.plots))
-    regions
-    |> List.map (fun region -> (countEdges region) * (Set.count region.plots))
-    |> List.sum
-    |> printfn "%A"
-
-    0
-
-let two lines =
-    let garden = lines |> Grid.fromLines id
-    gatherRegions garden |> List.length |> printfn "%A"
-    0
+let two : string seq -> int = (fun _ -> 0)
