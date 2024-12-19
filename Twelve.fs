@@ -71,26 +71,34 @@ let one: string seq -> int =
     >> List.map (fun region -> (traceEdges region) * (Set.count region.plots))
     >> List.sum
 
+module Set =
+    let tryMin set =
+        match Set.isEmpty set with
+        | true -> None
+        | false -> Some(Set.minElement set)
+
 let two: string seq -> int =
-
     let findSides edges =
-        let fold found ((plot, blocked) as edge) =
-            let neighbors =
-                directions
-                |> Set.map (fun direction -> neighbor plot direction, blocked)
-                |> Set.intersect edges
-                |> Set.add edge
+        let rec findSides found lost =
+            match Set.tryMin lost with
+            | Some((plot, blocked) as edge) ->
+                let sidePiece =
+                    directions
+                    |> Set.map (fun direction -> neighbor plot direction, blocked)
+                    |> Set.intersect edges
+                    |> Set.add edge
 
-            // printfn "plot: %A\nblockd: %A\nneighbors: %A" plot blocked neighbors
+                let (rest, wall) = Set.partition (Set.intersect sidePiece >> Set.isEmpty) found
 
-            match
-                found
-                |> List.partition (fun edge -> edge |> Set.intersect neighbors |> Set.isEmpty)
-            with
-            | (rest, [ wall ]) -> (Set.unionMany [neighbors; wall]) :: rest
-            | (rest, _) -> neighbors :: rest
+                let found =
+                    match Set.tryMin wall with
+                    | None -> sidePiece // new wall
+                    | Some wall -> Set.union wall sidePiece // extend wall
 
-        Set.fold fold [] edges
+                sidePiece |> Set.difference lost |> findSides (Set.add found rest)
+            | None -> found
+
+        findSides Set.empty edges
 
 
     let filterEdges plots =
@@ -111,6 +119,6 @@ let two: string seq -> int =
     Grid.fromLines id
     >> gatherRegions
     >> List.map (fun region ->
-        printfn "plant: %A area: %A\t sides: %A" region.plant (Set.count region.plots) (countSides region) 
+        // printfn "plant: %A area: %A\t sides: %A" region.plant (Set.count region.plots) (countSides region)
         (countSides region) * (Set.count region.plots))
     >> List.sum
