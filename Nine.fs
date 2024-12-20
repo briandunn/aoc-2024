@@ -21,19 +21,18 @@ let parse: string seq -> File seq =
             |> Some
         | _ -> None)
 
-let toMap =
-    let fold (i, map) { id = id; size = size; gap = gap } =
-        let fold map (j, id) = Map.add (i + j) id map
-
-        (i + size + gap, id |> Seq.replicate size |> Seq.indexed |> Seq.fold fold map)
-
-    Seq.fold fold (0, Map.empty) >> snd
-
-let checksum =
-    let fold sum index id = sum + (int64 index) * (int64 id)
-    Map.fold fold 0L
-
 let one: string seq -> int =
+    let checksum =
+        let fold sum index id = sum + (int64 index) * (int64 id)
+        Map.fold fold 0L
+
+    let toMap =
+        let fold (i, map) { id = id; size = size; gap = gap } =
+            let fold map (j, id) = Map.add (i + j) id map
+
+            (i + size + gap, id |> Seq.replicate size |> Seq.indexed |> Seq.fold fold map)
+
+        Seq.fold fold (0, Map.empty) >> snd
 
     let nextGap lastGapIndex lastBlock disk =
         seq {
@@ -57,46 +56,95 @@ let one: string seq -> int =
 
     parse >> toMap >> compact >> checksum >> printfn "%A" >> (fun _ -> 0)
 
-let print disk =
-    seq { 0 .. (disk |> Map.maxKeyValue |> fst) }
-    |> Seq.iter (fun i ->
-        disk
-        |> Map.tryFind i
-        |> function
-            | Some id -> printf "%d" id
-            | None -> printf ".")
+type File' = { id: int; size: int }
 
-    printfn
+type Sector =
+    | Gap of int
+    | File of File'
 
-// keep a map of id -> blocks?
-let two (lines: string seq) : int =
-    let firstFit { size = size; id = id } disk =
-        let occupied = disk |> Map.keys |> Set.ofSeq
-        let stop = Map.findKey (fun _ v -> v = id) disk
+let two: string seq -> int =
+    let print disk =
+        let iter (_, sectorType) =
+            match sectorType with
+            | Gap gap -> '.' |> Seq.replicate gap |> Seq.iter (printf "%c")
+            | File { id = id; size = size } -> id |> Seq.replicate size |> Seq.iter (printf "%d")
 
-        occupied
-        |> Set.difference (seq { 0..stop } |> Set.ofSeq)
-        |> Seq.windowed size
-        |> Seq.tryFind (fun window -> { Array.head window .. Array.last window } |> Seq.forall2 (=) window)
-        |> Option.map Array.head
+        disk |> Map.toSeq |> Seq.iter iter
+        printf "\n"
 
-    let move start file disk =
-        let fold disk i = Map.add i file.id disk
+    let toMap =
+        let fold (i, map) =
+            function
+            | { id = id; size = size; gap = gap } when gap = 0 ->
+                i + size, map |> Map.add i (File { id = id; size = size })
+            | { id = id; size = size; gap = gap } ->
+                i + size + gap, map |> Map.add i (File { id = id; size = size }) |> Map.add (i + size) (Gap gap)
 
-        seq { start .. start + file.size - 1 }
-        |> Seq.fold fold (Map.filter (fun _ id -> id <> file.id) disk)
+        Seq.fold fold (0, Map.empty) >> snd
 
-    let compact file disk =
+    let checksum: Map<int, Sector> -> int64 =
+        let fold sum sector =
+            function
+            | File { id = id; size = size } ->
+                sum
+                + (seq { int64 sector .. (int64 sector + int64 size - 1L) }
+                   |> Seq.map ((*) (int64 id))
+                   |> Seq.sum)
+            | _ -> sum
 
-        disk
-        |> firstFit file
-        |> function
-            | Some start -> move start file disk
+        Map.fold fold 0L
+
+    let firstGap limit { size = size } =
+        Map.toSeq
+        >> Seq.takeWhile (fun (k, _) -> k < limit)
+        >> Seq.choose (function
+            | (sector, Gap gap) when gap > size -> Some(sector, Some(sector + size, Gap(gap - size)))
+            | (sector, Gap gap) when gap = size -> Some(sector, None)
+            | _ -> None)
+        >> Seq.tryHead
+
+    let lastFile stuckCount =
+        Map.toSeq
+        >> Seq.rev
+        >> Seq.choose (function
+            | (sector, File file) -> Some(sector, file)
+            | _ -> None)
+        >> Seq.skip stuckCount
+        >> Seq.tryHead
+
+    let compact disk =
+        let rec compact' stuckCount disk =
+            print disk
+
+            match lastFile stuckCount disk with
             | None -> disk
+            | Some(srcSector, file) ->
+                printfn "id: %d" file.id
 
-    let disk = parse lines
+                disk
+                |> firstGap srcSector file
+                |> function
+                    | Some(destSector, Some(gapSector, newGap)) ->
+                        disk
+                        |> Map.remove srcSector
+                        |> Map.add srcSector (Gap file.size)
+                        |> Map.add destSector (File file)
+                        |> Map.add gapSector newGap
+                        |> compact' stuckCount
+                    | Some(destSector, None) ->
+                        disk
+                        |> Map.remove srcSector
+                        |> Map.add srcSector (Gap file.size)
+                        |> Map.add destSector (File file)
+                        |> compact' stuckCount
+                    | None -> compact' (stuckCount + 1) disk
 
-    disk |> toMap |> Seq.foldBack compact disk |> checksum |> printfn "%A"
+        compact' 0 disk
 
-    // disc |> compact
-    0
+    parse
+    >> toMap
+    >> compact
+    >> checksum
+    >> (fun x ->
+        printfn "%d" x
+        0)
