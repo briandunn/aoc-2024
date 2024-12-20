@@ -63,15 +63,6 @@ type Sector =
     | File of File'
 
 let two: string seq -> int =
-    let print disk =
-        let iter (_, sectorType) =
-            match sectorType with
-            | Gap gap -> '.' |> Seq.replicate gap |> Seq.iter (printf "%c")
-            | File { id = id; size = size } -> id |> Seq.replicate size |> Seq.iter (printf "%d")
-
-        disk |> Map.toSeq |> Seq.iter iter
-        printf "\n"
-
     let toMap =
         let fold (i, map) =
             function
@@ -114,27 +105,21 @@ let two: string seq -> int =
 
     let compact disk =
         let rec compact' stuckCount disk =
-            print disk
-
             match lastFile stuckCount disk with
             | None -> disk
             | Some(srcSector, file) ->
-                printfn "id: %d" file.id
-
                 disk
                 |> firstGap srcSector file
                 |> function
                     | Some(destSector, Some(gapSector, newGap)) ->
                         disk
                         |> Map.remove srcSector
-                        |> Map.add srcSector (Gap file.size)
                         |> Map.add destSector (File file)
                         |> Map.add gapSector newGap
                         |> compact' stuckCount
                     | Some(destSector, None) ->
                         disk
                         |> Map.remove srcSector
-                        |> Map.add srcSector (Gap file.size)
                         |> Map.add destSector (File file)
                         |> compact' stuckCount
                     | None -> compact' (stuckCount + 1) disk
