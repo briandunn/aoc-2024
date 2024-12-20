@@ -3,7 +3,7 @@ module Thirteen
 type Pt = int * int
 type Machine = { a: Pt; b: Pt; prize: Pt }
 
-let parse lines =
+let parse : string seq -> Machine seq =
     let regex = System.Text.RegularExpressions.Regex("(\d+)")
 
     let parsePoint line =
@@ -17,7 +17,7 @@ let parse lines =
             | [| a; b; prize |] -> Some({ a = a; b = b; prize = prize })
             | _ -> None
 
-    lines |> Seq.chunkBySize 4 |> Seq.choose (Array.take 3 >> parseMachine)
+    Seq.chunkBySize 4 >> Seq.choose (Array.take 3 >> parseMachine)
 
 let one lines =
 
