@@ -93,25 +93,23 @@ module Two =
 
             List.fold fold 0L
 
-        let firstGap { size = size; sector = limit } =
-            Map.toSeq
-            >> Seq.takeWhile (fun (k, _) -> k < limit)
-            >> Seq.choose (function
-                | (sector, gap) when gap > size -> Some(sector, Some(sector + size, (gap - size)))
-                | (sector, gap) when gap = size -> Some(sector, None)
+        let firstGap { size = size; sector = limit } gaps =
+            gaps
+            |> Map.toSeq
+            |> Seq.takeWhile (fun (k, _) -> k < limit)
+            |> Seq.choose (function
+                | (sector, gap) when gap > size ->
+                    Some(gaps |> Map.add (sector + size) (gap - size) |> Map.remove sector, sector)
+                | (sector, gap) when gap = size -> Some(Map.remove sector gaps, sector)
                 | _ -> None)
-            >> Seq.tryHead
+            |> Seq.tryHead
 
         let compact disk =
             let compact' (gaps, placed) file =
                 gaps
                 |> firstGap file
                 |> function
-                    | Some(destSector, Some(gapSector, newGap)) ->
-                        (gaps |> Map.add gapSector newGap |> Map.remove destSector,
-                         { file with sector = destSector } :: placed)
-                    | Some(destSector, None) ->
-                        (Map.remove destSector gaps, { file with sector = destSector } :: placed)
+                    | Some(gaps, destSector) -> (gaps, { file with sector = destSector } :: placed)
                     | None -> (gaps, file :: placed)
 
             List.fold compact' (disk.gaps, []) disk.files |> snd
