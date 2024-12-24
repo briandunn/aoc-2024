@@ -6,14 +6,16 @@ type Robot =
 
 let regex = System.Text.RegularExpressions.Regex("-?\d+")
 
-let parse line =
-    match regex.Matches(line) |> Seq.map (fun m -> int m.Value) |> Seq.toArray with
-    | [| px; py; vx; vy |] ->
-        Some(
-            { position = (px, py)
-              velocity = (vx, vy) }
-        )
-    | _ -> None
+let parse =
+    let parse line =
+        match regex.Matches(line) |> Seq.map (fun m -> int m.Value) |> Seq.toArray with
+        | [| px; py; vx; vy |] ->
+            Some(
+                { position = (px, py)
+                  velocity = (vx, vy) }
+            )
+        | _ -> None
+    Seq.choose parse >> Seq.cache
 
 // let dimensions = (11, 7)
 let dimensions = (101, 103)
@@ -35,7 +37,8 @@ let advance
 let print robots =
     let robotMap = robots |> Seq.groupBy (fun r -> r.position) |> Map.ofSeq
 
-    printf "%c[H" (char 0x1B)
+    // printf "%c[H" (char 0x1B)
+    printf "\n"
 
     seq {
         for y in 0 .. (h - 1) do
@@ -102,5 +105,5 @@ module Two =
             robots |> print |> ignore
             i
 
-let one: string seq -> int = Seq.choose parse >> Seq.toList >> One.one
-let two: string seq -> int = Seq.choose parse >> Seq.toList >> Two.two
+let one: string seq -> int = parse >> One.one
+let two: string seq -> int = parse >> Two.two
