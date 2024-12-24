@@ -79,31 +79,42 @@ module One =
             1
 
 module Two =
+    let reflectX (x, y) = (w - x - 1, y)
 
-    let isSymmetrical robots =
-        let map =
-            robots |> Seq.countBy (fun { position = position } -> position) |> Map.ofSeq
+    // let isSymmetrical robots =
+    //     let map =
+    //         robots |> Seq.countBy (fun { position = position } -> position) |> Map.ofSeq
 
-        let reflectX (x, y) = (w - x - 1, y)
 
-        let forall position count =
-            map |> Map.tryFind (reflectX position) |> Option.exists ((=) count)
+    //     let forall position count =
+    //         map |> Map.tryFind (reflectX position) |> Option.exists ((=) count)
 
-        Map.forall forall map
+    //     Map.forall forall map
+
+    let isSymmetrical =
+        let rec loop map =
+            function
+            | [] when Map.isEmpty map -> true
+            | [] -> false
+            | {position = (x,_)}::rest when x = mx -> loop map rest
+            | {position = position}::rest ->
+                let reflection = reflectX position
+                let map = match Map.tryFind reflection map with
+                          | Some count when count > 1 -> Map.add reflection (count - 1) map
+                          | Some _ -> Map.remove reflection map
+                          | None -> Map.add position 1 map
+                loop map rest
+
+        loop Map.empty
 
 
     let two =
-        let unfold robots =
-            let next = Seq.map advance robots
-            Some(next, next)
-
-        Seq.unfold unfold
-        >> Seq.indexed
-        >> Seq.skipWhile (snd >> isSymmetrical >> not)
-        >> Seq.head
-        >> fun (i, robots) ->
-            robots |> print |> ignore
-            i
+        let rec loop i robots =
+            if isSymmetrical robots then
+                robots |> print |> ignore
+                i
+            else loop (i + 1) (List.map advance robots)
+        loop 0
 
 let one: string seq -> int = parse >> One.one
-let two: string seq -> int = parse >> Two.two
+let two: string seq -> int = parse >> Seq.toList >> Two.two
