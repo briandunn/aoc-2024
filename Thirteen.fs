@@ -40,13 +40,15 @@ let one: string seq -> int =
         |> function
             | None -> None
             | Some x ->
-                printfn "%A" machine
+                // printfn "%A" machine
                 printfn "%A" x
                 Some x
         |> Option.map (fun (a', b') -> (a' * 3L + b'))
 
     // 29334 - too low
     parse
+    // >> Seq.skip 10
+    // >> Seq.take 10
     >> Seq.choose solve
     >> Seq.sum
     >> (fun x ->
@@ -74,14 +76,15 @@ let two: string seq -> int =
         let x = xCross a b prize
         let bPresses = x / (b |> fst |> float)
 
-        if abs (bPresses - floor bPresses) > 0.00001 then
+        if abs (bPresses - round bPresses) > 0.00001 then
             None
         else
+            let bPresses = round bPresses
             let crossY = bPresses * (float bY)
             let diffY = (float prizeY) - crossY
             let aPresses = round (diffY / (float aY))
 
-            printfn "%A" machine
+            // printfn "%A" machine
             printfn "%A" (int64 aPresses, int64 bPresses)
             Some(int64 aPresses, int64 bPresses)
 
@@ -89,6 +92,8 @@ let two: string seq -> int =
 
     parse
     // >> Seq.map adjustPrize
+    // >> Seq.skip 10
+    // >> Seq.take 10
     >> Seq.choose solve
     >> Seq.sum
     >> (fun sum ->
