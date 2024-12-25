@@ -15,6 +15,7 @@ let parse =
                   velocity = (vx, vy) }
             )
         | _ -> None
+
     Seq.choose parse >> Seq.cache
 
 // let dimensions = (11, 7)
@@ -34,18 +35,16 @@ let advance
     let y = if y < 0 then y + h else y
     { robot with position = x, y }
 
-let print robots =
+let print (w, h) robots =
     let robotMap = robots |> Seq.groupBy (fun r -> r.position) |> Map.ofSeq
 
     // printf "%c[H" (char 0x1B)
-    printf "\n"
 
     seq {
         for y in 0 .. (h - 1) do
             for x in 0 .. (w - 1) do
                 yield
                     match Map.tryFind (x, y) robotMap with
-                    | _ when x = mx || y = my -> " "
                     | Some r -> r |> Seq.length |> string
                     | None -> "."
 
@@ -68,8 +67,8 @@ module One =
         let fold robots _ = Seq.map advance robots
 
         seq { 1..100 }
-        |> Seq.fold fold (print robots)
-        |> print
+        |> Seq.fold fold (print dimensions robots)
+        |> print dimensions
         |> Seq.countBy (fun robot -> quadrant robot.position)
         |> Seq.fold
             (fun product ->
@@ -79,41 +78,39 @@ module One =
             1
 
 module Two =
-    let reflectX (x, y) = (w - x - 1, y)
-
-    // let isSymmetrical robots =
-    //     let map =
-    //         robots |> Seq.countBy (fun { position = position } -> position) |> Map.ofSeq
-
-
-    //     let forall position count =
-    //         map |> Map.tryFind (reflectX position) |> Option.exists ((=) count)
-
-    //     Map.forall forall map
-
-    let isSymmetrical =
-        let rec loop map =
+    let groupNeighbors: Robot seq -> ((int * int) Set) list =
+        let rec loop groups =
             function
-            | [] when Map.isEmpty map -> true
-            | [] -> false
-            | {position = (x,_)}::rest when x = mx -> loop map rest
-            | {position = position}::rest ->
-                let reflection = reflectX position
-                let map = match Map.tryFind reflection map with
-                          | Some count when count > 1 -> Map.add reflection (count - 1) map
-                          | Some _ -> Map.remove reflection map
-                          | None -> Map.add position 1 map
-                loop map rest
+            | [] -> groups
+            | (px, py) as bot :: rest ->
+                let neighbors =
+                    seq {
+                        for y in py - 1 .. py + 1 do
+                            for x in px - 1 .. px + 1 do
+                                yield (x, y)
+                    }
+                    |> Set.ofSeq
 
-        loop Map.empty
+                let groups =
+                    match List.partition (fun group -> neighbors |> Set.intersect group |> Set.isEmpty) groups with
+                    | strangers, [] -> (Set.singleton bot) :: strangers
+                    | strangers, neighborhoods -> (neighborhoods |> Set.unionMany |> Set.add bot) :: strangers
 
+                loop groups rest
+
+        Seq.map (fun { position = p } -> p) >> Seq.toList >> loop []
+
+    let containsGroupOf count =
+        groupNeighbors >> List.exists (fun group -> group |> Set.count >= count)
 
     let two =
         let rec loop i robots =
-            if isSymmetrical robots then
-                robots |> print |> ignore
+            if containsGroupOf 50 robots then
+                print dimensions robots |> ignore
                 i
-            else loop (i + 1) (List.map advance robots)
+            else
+                loop (i + 1) (List.map advance robots)
+
         loop 0
 
 let one: string seq -> int = parse >> One.one
