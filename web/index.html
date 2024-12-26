@@ -6,7 +6,14 @@
     <title>Fable</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <canvas id="canvas" width="800" height="600" style="border: 1px solid black"></canvas>
+      <input type="file" id="file" />
+      <button id="back">&lt;</button>
+      <button id="play">▶️</button>
+      <button id="forward">&gt;</button>
+      <span id="time"></span>
+    </div>
     <script type="module" src="/Program.fs.js"></script>
   </body>
 </html>
