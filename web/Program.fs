@@ -1,42 +1,51 @@
 ﻿open Browser
 open Feliz
 
+type Robot =
+    { position: int * int
+      velocity: int * int }
 
-// type Robot =
-//     { position: int * int
-//       velocity: int * int }
+let (w, h) = (101, 103)
 
-// type State = { robots: Robot seq; playing: bool; context: Types.CanvasRenderingContext2D; frame: float option }
+module Fourteen =
+    let regex = System.Text.RegularExpressions.Regex("-?\d+")
 
-// module Fourteen =
-//     let regex = System.Text.RegularExpressions.Regex("-?\d+")
+    let parse (file: string) =
+        let parse line =
+            match regex.Matches(line)
+                  |> Seq.map (fun m -> int m.Value)
+                  |> Seq.toArray
+                with
+            | [| px; py; vx; vy |] ->
+                Some(
+                    { position = (px, py)
+                      velocity = (vx, vy) }
+                )
+            | _ -> None
 
-//     let parse (file: string) =
-//         let parse line =
-//             match regex.Matches(line)
-//                   |> Seq.map (fun m -> int m.Value)
-//                   |> Seq.toArray
-//                 with
-//             | [| px; py; vx; vy |] ->
-//                 Some(
-//                     { position = (px, py)
-//                       velocity = (vx, vy) }
-//                 )
-//             | _ -> None
+        file.Split('\n') |> Seq.choose parse |> Seq.cache
 
-//         file.Split('\n') |> Seq.choose parse |> Seq.cache
+    //     let (w, h) = (101, 103)
 
-//     let (w, h) = (101, 103)
+    let advance
+        ({ position = (px, py)
+           velocity = (vx, vy) } as robot)
+        =
+        let x = (px + vx) % w
+        let x = if x < 0 then x + w else x
+        let y = (py + vy) % h
+        let y = if y < 0 then y + h else y
+        { robot with position = x, y }
 
-//     let advance
-//         ({ position = (px, py)
-//            velocity = (vx, vy) } as robot)
-//         =
-//         let x = (px + vx) % w
-//         let x = if x < 0 then x + w else x
-//         let y = (py + vy) % h
-//         let y = if y < 0 then y + h else y
-//         { robot with position = x, y }
+    let advanceTo (s: int)
+        ({ position = (px, py)
+           velocity = (vx, vy) } as robot)
+        =
+        let x = (px + (s * vx)) % w
+        let x = if x < 0 then x + w else x
+        let y = (py + (s * vy)) % h
+        let y = if y < 0 then y + h else y
+        { robot with position = x, y }
 
 //     let draw (context: Types.CanvasRenderingContext2D) robots =
 //         context.clearRect (0.0, 0.0, context.canvas.width, context.canvas.height)
@@ -90,39 +99,59 @@ open Feliz
 //             Fourteen.two state)
 //     )
 
-// file.addEventListener (
-//     "change",
-//     (fun e ->
-//         let file =
-//             (e.target :?> Types.HTMLInputElement)
-//                 .files.item (0)
+type State =
+    { robots: Robot seq
+      playing: bool
+      frame: int }
 
-//         file
-//             .text()
-//             .``then`` (fun text ->
-//                 state.Value <- { state.Value with robots = Fourteen.parse text }
-//                 Fourteen.two state)
-//         |> ignore)
-// )
 
 [<ReactComponent>]
-let Main() =
-    let (count, setCount) = React.useState(0)
-    Html.div [
-        Html.button [
-            prop.style [ style.marginRight 5 ]
-            prop.onClick (fun _ -> setCount(count + 1))
-            prop.text "Increment"
-        ]
+let Main () =
+    let (state, setState) =
+        React.useState (
+            { robots = Seq.empty
+              playing = false
+              frame = 0 }
+        )
 
-        Html.button [
-            prop.style [ style.marginLeft 5 ]
-            prop.onClick (fun _ -> setCount(count - 1))
-            prop.text "Decrement"
-        ]
+    let changeFile (file: Types.File) =
+        file
+            .text()
+            .``then`` (fun text -> setState ({ state with robots = Fourteen.parse text }))
+        |> ignore
 
-        Html.h1 count
-    ]
+    let changeFrame (n: int) =
+        setState ({ state with frame = n })
+
+    React.useEffect (fun () ->
+        if state.playing then
+            window.requestAnimationFrame (fun _ -> changeFrame (state.frame + 1)) |> ignore
+    )
+
+    let percent n d =
+        length.percent ((float n * 100.0) / float d)
+
+    Html.div [ Html.input [ prop.type' "file"
+                            prop.id "file"
+                            prop.onChange changeFile ]
+               Html.div [ prop.style [ style.position.relative
+                                       style.height 400
+                                       style.width 600 ]
+                          prop.children [ for i, { position = (x, y) } in state.robots |> Seq.map (Fourteen.advanceTo state.frame) |> Seq.indexed ->
+                                              Html.div [ prop.key i
+                                                         prop.style [ style.position.absolute
+                                                                      style.height (percent 1 h)
+                                                                      style.width (percent 1 w)
+                                                                      style.backgroundColor color.black
+                                                                      style.top (percent y w)
+                                                                      style.left (percent x h) ] ] ] ]
+               Html.button [ prop.children [ Html.text "⏯️" ]
+                             prop.onClick (fun _ -> setState ({ state with playing = not state.playing })) ]
+               Html.input [ prop.type'.number
+                            prop.value state.frame
+                            prop.onChange changeFrame ] ]
 
 
-ReactDOM.createRoot(document.getElementById "root").render(Main())
+ReactDOM
+    .createRoot(document.getElementById "root")
+    .render (Main())
