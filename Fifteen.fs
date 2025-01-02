@@ -24,6 +24,7 @@ let parse (lines: string seq) =
             | Some Wall -> (robot, map |> Map.add pt Wall)
             | Some Box -> (robot, map |> Map.add pt Box)
             | None -> (Some pt, map)
+
         seq {
             for y, line in Seq.indexed lines do
                 for x, c in Seq.indexed line do
@@ -45,8 +46,12 @@ let parse (lines: string seq) =
 
     let map = lines |> Seq.takeWhile (String.length >> ((<>) 0)) |> parseMap
     let moves = lines |> String.concat "" |> Seq.choose parseMove
+
     match map with
-    | (Some robot, map) -> { map = map; robot = robot; moves = moves }
+    | (Some robot, map) ->
+        { map = map
+          robot = robot
+          moves = moves }
     | _ -> failwith "No robot found"
 
 let checksum =
@@ -59,7 +64,7 @@ let checksum =
 
     snd >> Map.fold fold 0
 
-let one : string seq -> int =
+let one: string seq -> int =
     let print (robot, map) =
         let keys = Map.keys map
         let w = keys |> Seq.map fst |> Seq.max
@@ -100,10 +105,67 @@ let one : string seq -> int =
             | _ -> (pt, map)
         | _ -> (next, map)
 
-    let move { map = map; robot = robot; moves = moves } =
+    let move
+        { map = map
+          robot = robot
+          moves = moves }
+        =
         let fold (robot, map) move = tryMove robot move map
         Seq.fold fold (robot, Map.remove robot map) moves
 
     parse >> move >> checksum
 
-let two lines = 0
+module Two =
+    type Tile' =
+        | Wall'
+        | Box' of int
+
+    type State' =
+        { map: Map<Pt, Tile'>
+          robot: Pt
+          moves: Direction seq }
+
+    let print ({robot = robot; map = map }: State') =
+        let keys = Map.keys map
+        let w = keys |> Seq.map fst |> Seq.max
+        let h = keys |> Seq.map snd |> Seq.max
+
+        let fold y (opened, out) x =
+            match (x, y) with
+            | pt when pt = robot -> (opened, out + "@")
+            | pt ->
+                match Map.tryFind pt map with
+                | Some (Box' id) when Set.contains id opened -> (Set.remove id opened, out + "]")
+                | Some (Box' id) -> (Set.add id opened, out + "[")
+                | Some Wall' -> (opened, out + "#")
+                | None -> (opened, out + ".")
+
+        seq {
+            for y in 0..h do
+                yield (seq { 0..w } |> Seq.fold (fold y) (Set.empty, "") |> snd) + "\n"
+        }
+        |> String.concat ""
+        |> printf "%s"
+
+    let doubleWidth
+        (({ map = map
+            robot = robot
+            moves = moves }): State)
+        : State' =
+        let doubleX (x,y) = (x * 2, y)
+        let fold (id, map) pt =
+            let ((x, y) as pt) = doubleX pt
+            function
+            | Wall -> (id, map |> Map.add pt Wall' |> Map.add (x + 1, y) Wall')
+            | Box -> (id + 1, map |> Map.add pt (Box' id) |> Map.add (x + 1, y) (Box' id))
+
+        { map = map |> Map.fold fold (0, Map.empty) |> snd
+          robot = doubleX robot
+          moves = moves }
+
+    let two lines =
+
+        lines |> parse |> doubleWidth |> print
+        0
+
+let two = Two.two
