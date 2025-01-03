@@ -104,8 +104,6 @@ let one lines =
     let maze = parse lines
 
     let buildPath history =
-        // history |> Seq.iter (printfn "%A")
-
         match Map.tryFind maze.exit history with
         | Some edge ->
             let rec loop =
@@ -123,49 +121,41 @@ let one lines =
     let getEdges q =
         neighbors >> List.filter (fun { pt = pt } -> Set.contains pt q)
 
-    let rec loop starts dist prev q =
-        if Set.isEmpty q then
-            prev
-        else
-            match starts with
-            | [] -> prev
-            | current :: starts ->
-                let q = Set.remove current.pt q
+    let rec loop dist prev q =
+        function
+        | [] -> prev
+        | current :: starts ->
+            // System.Console.Clear()
+            // print maze (prev |> Map.values |> List.ofSeq)
+            // System.Threading.Thread.Sleep(10)
+            let q = Set.remove current.pt q
 
-                let fold (dist, prev) neighbor =
-                    let alt =
-                        dist
-                        |> Map.tryFind current.pt
-                        |> Option.defaultValue maxInt
-                        |> ((+) neighbor.cost)
+            let fold (dist, prev) neighbor =
+                let cost =
+                    dist
+                    |> Map.tryFind current.pt
+                    |> Option.defaultValue maxInt
+                    |> ((+) neighbor.cost)
 
-                    match Map.tryFind neighbor.pt dist with
-                    | Some alt' when alt > alt' -> dist, prev
-                    | _ -> Map.add neighbor.pt alt dist, Map.add neighbor.pt current prev
+                match Map.tryFind neighbor.pt dist with
+                | Some previousCost when (previousCost + 3) < cost ->
+                   dist, prev
+                | _ -> Map.add neighbor.pt cost dist, Map.add neighbor.pt current prev
 
-                let neighbors = getEdges q current
-                if List.length neighbors > 1 then
-                  printfn "neighbors: %A\ncurrent: %A" neighbors current
+            let neighbors = getEdges q current
 
-                let dist, prev = List.fold fold (dist, prev) neighbors
+            let dist, prev = List.fold fold (dist, prev) neighbors
 
-                loop (starts @ neighbors) dist prev q
+            loop dist prev q (List.sortBy (fun { cost = cost } -> cost) (starts @ neighbors))
 
 
     let dist = Map.ofList [ maze.entrance, 0 ]
 
-    maze.vertices
-    |> Set.add maze.exit
-    |> loop
-        [ { pt = maze.entrance
-            direction = E
-            cost = 0 } ]
-        dist
-        Map.empty
+    [ { pt = maze.entrance
+        direction = E
+        cost = 1 } ]
+    |> loop dist Map.empty (maze.vertices |> Set.add maze.exit)
     |> buildPath
-    |> print maze
-
-    // |> List.fold (fun acc edge -> acc + edge.cost) 0
-    0
+    |> List.fold (fun acc edge -> acc + edge.cost) 0
 
 let two lines = 0
