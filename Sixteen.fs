@@ -123,23 +123,22 @@ let one lines =
 
     let rec loop dist prev q =
         function
-        | [] -> prev
+        | [] ->
+            prev
         | current :: starts ->
             // System.Console.Clear()
             // print maze (prev |> Map.values |> List.ofSeq)
             // System.Threading.Thread.Sleep(10)
-            let q = Set.remove current.pt q
-
             let fold (dist, prev) neighbor =
-                let cost =
-                    dist
-                    |> Map.tryFind current.pt
-                    |> Option.defaultValue maxInt
-                    |> ((+) neighbor.cost)
+                let cost = dist |> Map.find current.pt |> ((+) neighbor.cost)
+                let previousCost = dist |> Map.tryFind neighbor.pt |> Option.defaultValue maxInt
 
-                match Map.tryFind neighbor.pt dist with
-                | Some previousCost when (previousCost + 3) < cost -> dist, prev
-                | _ -> Map.add neighbor.pt cost dist, Map.add neighbor.pt current prev
+                if cost < previousCost then
+                    Map.add neighbor.pt cost dist, Map.add neighbor.pt current prev
+                else
+                    dist, prev
+
+            let q = Set.remove current.pt q
 
             let neighbors = getEdges q current
 
@@ -168,19 +167,22 @@ let two lines =
     let rec loop completed =
         function
         | [] -> completed
-        | ((current :: path, unvisited) :: paths) ->
+        | (((current :: _) as path, unvisited) :: paths) ->
+            let unvisited = Set.remove current.pt unvisited
+
             let exits, neighbors =
                 current
                 |> getEdges unvisited
                 |> List.partition (fun { pt = pt } -> pt = maze.exit)
 
-            let completed' = exits |> List.map (fun exit -> exit :: current :: path)
+            let completed' = exits |> List.map (fun exit -> exit :: path)
 
             let paths' =
                 neighbors
-                |> List.map (fun neighbor -> neighbor :: current :: path, Set.remove current.pt unvisited)
+                |> List.map (fun neighbor -> neighbor :: path, unvisited)
 
             loop (completed' @ completed) (paths' @ paths)
+        | _ -> failwith "A path cannot be empty"
 
 
     let start =
@@ -188,7 +190,10 @@ let two lines =
           direction = E
           cost = 1 }
 
-    loop [] [ [start], (Set.add maze.exit maze.vertices) ] |> List.iter (print maze)
+    loop [] [ [ start ], (Set.add maze.exit maze.vertices) ]
+    |> List.map (fun path -> path |> List.fold (fun acc edge -> acc + edge.cost) 0)
+    |> List.sort
+    |> printfn "%A"
 
 
     0
