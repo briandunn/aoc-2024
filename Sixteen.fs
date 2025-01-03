@@ -100,6 +100,9 @@ let print maze path =
     |> String.concat ""
     |> printf "%s"
 
+let getEdges q =
+    neighbors >> List.filter (fun { pt = pt } -> Set.contains pt q)
+
 let one lines =
     let maze = parse lines
 
@@ -118,9 +121,6 @@ let one lines =
             loop [ edge ]
         | None -> []
 
-    let getEdges q =
-        neighbors >> List.filter (fun { pt = pt } -> Set.contains pt q)
-
     let rec loop dist prev q =
         function
         | [] -> prev
@@ -138,8 +138,7 @@ let one lines =
                     |> ((+) neighbor.cost)
 
                 match Map.tryFind neighbor.pt dist with
-                | Some previousCost when (previousCost + 3) < cost ->
-                   dist, prev
+                | Some previousCost when (previousCost + 3) < cost -> dist, prev
                 | _ -> Map.add neighbor.pt cost dist, Map.add neighbor.pt current prev
 
             let neighbors = getEdges q current
@@ -158,4 +157,38 @@ let one lines =
     |> buildPath
     |> List.fold (fun acc edge -> acc + edge.cost) 0
 
-let two lines = 0
+let two lines =
+    // like djistra but keep all paths?
+    // at each fork, add another path to the queue
+    // if we reach the end, add the path to the list of paths
+    // if we have no more places to go from a given path, remove it from the queue
+
+    let maze = parse lines
+
+    let rec loop completed =
+        function
+        | [] -> completed
+        | ((current :: path, unvisited) :: paths) ->
+            let exits, neighbors =
+                current
+                |> getEdges unvisited
+                |> List.partition (fun { pt = pt } -> pt = maze.exit)
+
+            let completed' = exits |> List.map (fun exit -> exit :: current :: path)
+
+            let paths' =
+                neighbors
+                |> List.map (fun neighbor -> neighbor :: current :: path, Set.remove current.pt unvisited)
+
+            loop (completed' @ completed) (paths' @ paths)
+
+
+    let start =
+        { pt = maze.entrance
+          direction = E
+          cost = 1 }
+
+    loop [] [ [start], (Set.add maze.exit maze.vertices) ] |> List.iter (print maze)
+
+
+    0
