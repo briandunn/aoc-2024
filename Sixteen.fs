@@ -41,7 +41,7 @@ let parse lines =
           entrance = (-1, -1)
           exit = (-1, -1) }
 
-let neighbors ((x, y), direction) =
+let neighbors { pt = (x, y); direction = direction } =
     match direction with
     | N ->
         [ { pt = (x, y - 1)
@@ -83,43 +83,89 @@ let neighbors ((x, y), direction) =
           { pt = (x, y + 1)
             direction = S
             cost = 1001 } ]
-    |> Set.ofList
 
 let maxInt = System.Int32.MaxValue
+
+let print maze path =
+    let path = List.fold (fun set { pt = pt } -> Set.add pt set) Set.empty path
+
+    seq {
+        for row in 0 .. maze.entrance |> snd do
+            for col in 0 .. maze.exit |> fst do
+                let pt = (col, row)
+                if Set.contains pt path then yield "O" else yield " "
+
+            yield "\n"
+    }
+    |> String.concat ""
+    |> printf "%s"
 
 let one lines =
     let maze = parse lines
 
+    let buildPath history =
+        // history |> Seq.iter (printfn "%A")
+
+        match Map.tryFind maze.exit history with
+        | Some edge ->
+            let rec loop =
+                function
+                | (head :: _) as path ->
+                    match Map.tryFind head.pt history with
+                    | Some edge when edge.pt <> maze.entrance -> loop (edge :: path)
+                    | Some entrance -> entrance :: path
+                    | _ -> path
+                | [] -> []
+
+            loop [ edge ]
+        | None -> []
+
     let getEdges q =
-        neighbors >> Set.filter (fun { pt = pt } -> Set.contains pt q)
+        neighbors >> List.filter (fun { pt = pt } -> Set.contains pt q)
 
-    let rec loop current dist prev q =
-        let edges = getEdges q current
-        printfn "%A" edges
-
-        if Set.isEmpty edges then
-            dist, prev
+    let rec loop starts dist prev q =
+        if Set.isEmpty q then
+            prev
         else
-            let edge = Seq.minBy (fun { cost = cost } -> cost) edges
-            let q = Set.remove edge.pt q
+            match starts with
+            | [] -> prev
+            | current :: starts ->
+                let q = Set.remove current.pt q
 
-            let fold (dist, prev) neighbor =
-                let alt =
-                    dist |> Map.tryFind edge.pt |> Option.defaultValue maxInt |> ((+) neighbor.cost)
+                let fold (dist, prev) neighbor =
+                    let alt =
+                        dist
+                        |> Map.tryFind current.pt
+                        |> Option.defaultValue maxInt
+                        |> ((+) neighbor.cost)
 
-                match Map.tryFind neighbor.pt dist with
-                | Some alt' when alt >= alt' -> dist, prev
-                | _ -> Map.add neighbor.pt alt dist, Map.add neighbor edge prev
+                    match Map.tryFind neighbor.pt dist with
+                    | Some alt' when alt > alt' -> dist, prev
+                    | _ -> Map.add neighbor.pt alt dist, Map.add neighbor.pt current prev
 
-            let dist, prev =
-                (edge.pt, edge.direction) |> getEdges q |> Set.fold fold (dist, prev)
+                let neighbors = getEdges q current
+                if List.length neighbors > 1 then
+                  printfn "neighbors: %A\ncurrent: %A" neighbors current
 
-            loop (edge.pt, edge.direction) dist prev q
+                let dist, prev = List.fold fold (dist, prev) neighbors
+
+                loop (starts @ neighbors) dist prev q
 
 
     let dist = Map.ofList [ maze.entrance, 0 ]
 
-    loop (maze.entrance, E) dist Map.empty maze.vertices |> printfn "%A"
+    maze.vertices
+    |> Set.add maze.exit
+    |> loop
+        [ { pt = maze.entrance
+            direction = E
+            cost = 0 } ]
+        dist
+        Map.empty
+    |> buildPath
+    |> print maze
+
+    // |> List.fold (fun acc edge -> acc + edge.cost) 0
     0
 
 let two lines = 0
