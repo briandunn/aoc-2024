@@ -209,9 +209,11 @@ module Two =
             | Some prevScore when prevScore < score -> (visited, false)
             | _ -> (visited |> Map.add placement score, true)
 
-    let push (q: PriorityQueue<Path, int>) path = q.Enqueue(path, path.score)
+    let push path (q: PriorityQueue<Path, int>) =
+        q.Enqueue(path, path.score)
+        q
 
-    let pop (q: PriorityQueue<Path, int>) = q.Dequeue()
+    let pop (q: PriorityQueue<Path, int>) = q, q.Dequeue()
 
     let two lines =
         let maze = parse lines
@@ -243,40 +245,44 @@ module Two =
             | E -> straight (x + 1, y) E @ [ turn N; turn S ]
             | W -> straight (x - 1, y) W @ [ turn N; turn S ]
 
-        let q = PriorityQueue()
-
         let start =
             { placement = { direction = E; pt = maze.entrance }
               vertices = [ maze.entrance ]
               score = 0 }
 
-        push q start
-
-        let rec loop lowestScore winningPaths visited =
+        let rec loop lowestScore winningPaths visited (q: PriorityQueue<Path, int>) =
             if q.Count = 0 then
                 winningPaths
             else
                 match pop q with
-                | { score = score } when lowestScore < score -> winningPaths
-                | { placement = placement
+                | q, { score = score } when lowestScore < score -> winningPaths
+                | q,
+                  { placement = placement
                     score = score
-                    vertices = vertices } when placement.pt = maze.exit -> loop score (vertices :: winningPaths) visited
-                | path ->
+                    vertices = vertices } when placement.pt = maze.exit ->
+                    loop score (vertices :: winningPaths) visited q
+                | q, path ->
                     let (visited, mayVisit) = canVisit path visited
 
-                    let fold visited path =
+                    let fold (visited, q) path =
                         let (visited, mayVisit) = canVisit path visited
 
+                        let q = if mayVisit then push path q else q
+
+                        visited, q
+
+                    let visited, q =
                         if mayVisit then
-                            push q path
+                            path |> neighbors |> List.fold fold (visited, q)
+                        else
+                            visited, q
 
-                        visited
+                    loop lowestScore winningPaths visited q
 
-                    if mayVisit then
-                        loop lowestScore winningPaths (path |> neighbors |> List.fold fold visited)
-                    else
-                        loop lowestScore winningPaths visited
+        let q = PriorityQueue()
 
-        Map.empty |> loop maxInt [] |> List.concat |> Set.ofList |> Set.count
+        let q = push start q
+
+        q |> loop maxInt [] Map.empty |> List.concat |> Set.ofList |> Set.count
 
 let two = Two.two
