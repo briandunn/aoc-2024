@@ -132,6 +132,11 @@ let dijkstra maze =
 
 let one: string seq -> int = parse >> dijkstra
 
+type Path =
+    { edges: Edge list
+      unvisited: Pt Set
+      remaining: int }
+
 let two lines =
     // like djistra but keep all paths?
     // at each fork, add another path to the queue
@@ -140,20 +145,30 @@ let two lines =
 
     let maze = parse lines
 
+    let maxScore = dijkstra maze
+
     let rec loop completed =
         function
         | [] -> completed
-        | (((current :: _) as path, unvisited) :: paths) ->
+        | ({ edges = (current :: _) as path
+             unvisited = unvisited
+             remaining = remaining } :: paths) ->
             let unvisited = Set.remove current.pt unvisited
 
             let exits, neighbors =
                 current
                 |> getEdges unvisited
+                |> List.filter (fun edge -> remaining - edge.cost >= 0)
                 |> List.partition (fun { pt = pt } -> pt = maze.exit)
 
             let completed' = exits |> List.map (fun exit -> exit :: path)
 
-            let paths' = neighbors |> List.map (fun neighbor -> neighbor :: path, unvisited)
+            let paths' =
+                neighbors
+                |> List.map (fun neighbor ->
+                    { edges = neighbor :: path
+                      unvisited = unvisited
+                      remaining = remaining - neighbor.cost })
 
             loop (completed' @ completed) (paths' @ paths)
         | _ -> failwith "A path cannot be empty"
@@ -164,10 +179,11 @@ let two lines =
           direction = E
           cost = 1 }
 
-    loop [] [ [ start ], (Set.add maze.exit maze.vertices) ]
-    |> List.map (fun path -> path |> List.fold (fun acc edge -> acc + edge.cost) 0)
-    |> List.sort
-    |> printfn "%A"
-
-
-    0
+    [ { edges = [ start ]
+        unvisited = Set.add maze.exit maze.vertices
+        remaining = maxScore } ]
+    |> loop []
+    |> List.concat
+    |> List.map (fun edge -> edge.pt)
+    |> Set.ofList
+    |> Set.count
