@@ -193,8 +193,6 @@ let two' lines =
 // trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
 
 module Two =
-    open System.Collections.Generic
-
     type Placement = { direction: Direction; pt: Pt }
 
     type Path =
@@ -209,11 +207,23 @@ module Two =
             | Some prevScore when prevScore < score -> (visited, false)
             | _ -> (visited |> Map.add placement score, true)
 
-    let push path (q: PriorityQueue<Path, int>) =
-        q.Enqueue(path, path.score)
-        q
+    let push path =
+        let change =
+            function
+            | Some values -> path :: values
+            | None -> [ path ]
+            >> Some
 
-    let pop (q: PriorityQueue<Path, int>) = q, q.Dequeue()
+        Map.change path.score change
+
+    let tryPop q =
+        if Map.isEmpty q then
+            None
+        else
+            match Map.minKeyValue q with
+            | _, [] -> None
+            | k, [ head ] -> Some(Map.remove k q, head)
+            | k, head :: rest -> Some(Map.add k rest q, head)
 
     let two lines =
         let maze = parse lines
@@ -250,39 +260,34 @@ module Two =
               vertices = [ maze.entrance ]
               score = 0 }
 
-        let rec loop lowestScore winningPaths visited (q: PriorityQueue<Path, int>) =
-            if q.Count = 0 then
-                winningPaths
-            else
-                match pop q with
-                | q, { score = score } when lowestScore < score -> winningPaths
-                | q,
-                  { placement = placement
-                    score = score
-                    vertices = vertices } when placement.pt = maze.exit ->
-                    loop score (vertices :: winningPaths) visited q
-                | q, path ->
+        let rec loop lowestScore winningPaths visited q =
+            match tryPop q with
+            | None -> winningPaths
+            | Some(_, { score = score }) when lowestScore < score -> winningPaths
+            | Some(q,
+                   { placement = placement
+                     score = score
+                     vertices = vertices }) when placement.pt = maze.exit ->
+                loop score (vertices :: winningPaths) visited q
+            | Some(q, path) ->
+                let (visited, mayVisit) = canVisit path visited
+
+                let fold (visited, q) path =
                     let (visited, mayVisit) = canVisit path visited
 
-                    let fold (visited, q) path =
-                        let (visited, mayVisit) = canVisit path visited
+                    let q = if mayVisit then push path q else q
 
-                        let q = if mayVisit then push path q else q
+                    visited, q
 
+                let visited, q =
+                    if mayVisit then
+                        path |> neighbors |> List.fold fold (visited, q)
+                    else
                         visited, q
 
-                    let visited, q =
-                        if mayVisit then
-                            path |> neighbors |> List.fold fold (visited, q)
-                        else
-                            visited, q
+                loop lowestScore winningPaths visited q
 
-                    loop lowestScore winningPaths visited q
 
-        let q = PriorityQueue()
-
-        let q = push start q
-
-        q |> loop maxInt [] Map.empty |> List.concat |> Set.ofList |> Set.count
+        Map.empty |> push start |> loop maxInt [] Map.empty |> List.concat |> Set.ofList |> Set.count
 
 let two = Two.two
