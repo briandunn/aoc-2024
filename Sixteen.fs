@@ -132,66 +132,7 @@ let dijkstra maze =
 
 let one: string seq -> int = parse >> dijkstra
 
-type Path =
-    { edges: Edge list
-      unvisited: Pt Set
-      remaining: int }
-
-let two' lines =
-    // like dijkstra but keep all paths?
-    // at each fork, add another path to the queue
-    // if we reach the end, add the path to the list of paths
-    // if we have no more places to go from a given path, remove it from the queue
-
-    let maze = parse lines
-
-    let maxScore = dijkstra maze
-
-    let rec loop completed =
-        function
-        | [] -> completed
-        | ({ edges = (current :: _) as path
-             unvisited = unvisited
-             remaining = remaining } :: paths) ->
-            let unvisited = Set.remove current.pt unvisited
-            printfn "%d" (List.length paths)
-
-            let exits, neighbors =
-                current
-                |> getEdges unvisited
-                |> List.filter (fun edge -> remaining - edge.cost >= 0)
-                |> List.partition (fun { pt = pt } -> pt = maze.exit)
-
-            let completed' = List.map (fun exit -> exit :: path) exits
-
-            let paths' =
-                List.map
-                    (fun neighbor ->
-                        { edges = neighbor :: path
-                          unvisited = unvisited
-                          remaining = remaining - neighbor.cost })
-                    neighbors
-
-            loop (completed' @ completed) (paths' @ paths)
-        | _ -> failwith "A path cannot be empty"
-
-
-    let start =
-        { pt = maze.entrance
-          direction = E
-          cost = 1 }
-
-    [ { edges = [ start ]
-        unvisited = Set.add maze.exit maze.vertices
-        remaining = maxScore } ]
-    |> loop []
-    |> List.concat
-    |> List.map (fun edge -> edge.pt)
-    |> Set.ofList
-    |> Set.count
-
 // trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
-
 module Two =
     type Placement = { direction: Direction; pt: Pt }
 
@@ -199,13 +140,6 @@ module Two =
         { placement: Placement
           score: int
           vertices: Pt list }
-
-    let canVisit { placement = placement; score = score } visited =
-        visited
-        |> Map.tryFind placement
-        |> function
-            | Some prevScore when prevScore < score -> (visited, false)
-            | _ -> (visited |> Map.add placement score, true)
 
     let push path =
         let change =
@@ -255,6 +189,13 @@ module Two =
             | E -> straight (x + 1, y) E @ [ turn N; turn S ]
             | W -> straight (x - 1, y) W @ [ turn N; turn S ]
 
+        let foldNeighbor (visited, q) ({ placement = placement; score = score } as path) =
+            visited
+            |> Map.tryFind placement
+            |> function
+                | Some prevScore when prevScore < score -> (visited, q)
+                | _ -> (Map.add placement score visited, push path q)
+
         let start =
             { placement = { direction = E; pt = maze.entrance }
               vertices = [ maze.entrance ]
@@ -270,24 +211,15 @@ module Two =
                      vertices = vertices }) when placement.pt = maze.exit ->
                 loop score (vertices :: winningPaths) visited q
             | Some(q, path) ->
-                let (visited, mayVisit) = canVisit path visited
-
-                let fold (visited, q) path =
-                    let (visited, mayVisit) = canVisit path visited
-
-                    let q = if mayVisit then push path q else q
-
-                    visited, q
-
-                let visited, q =
-                    if mayVisit then
-                        path |> neighbors |> List.fold fold (visited, q)
-                    else
-                        visited, q
-
+                let visited, q = path |> neighbors |> List.fold foldNeighbor (visited, q)
                 loop lowestScore winningPaths visited q
 
 
-        Map.empty |> push start |> loop maxInt [] Map.empty |> List.concat |> Set.ofList |> Set.count
+        Map.empty
+        |> push start
+        |> loop maxInt [] Map.empty
+        |> List.concat
+        |> List.distinct
+        |> List.length
 
 let two = Two.two
