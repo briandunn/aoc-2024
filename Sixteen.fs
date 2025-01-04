@@ -1,5 +1,7 @@
 module Sixteen
 
+open System.Collections.Generic
+
 type Pt = int * int
 
 type Maze =
@@ -137,8 +139,8 @@ type Path =
       unvisited: Pt Set
       remaining: int }
 
-let two lines =
-    // like djistra but keep all paths?
+let two' lines =
+    // like dijkstra but keep all paths?
     // at each fork, add another path to the queue
     // if we reach the end, add the path to the list of paths
     // if we have no more places to go from a given path, remove it from the queue
@@ -154,6 +156,7 @@ let two lines =
              unvisited = unvisited
              remaining = remaining } :: paths) ->
             let unvisited = Set.remove current.pt unvisited
+            printfn "%d" (List.length paths)
 
             let exits, neighbors =
                 current
@@ -161,14 +164,15 @@ let two lines =
                 |> List.filter (fun edge -> remaining - edge.cost >= 0)
                 |> List.partition (fun { pt = pt } -> pt = maze.exit)
 
-            let completed' = exits |> List.map (fun exit -> exit :: path)
+            let completed' = List.map (fun exit -> exit :: path) exits
 
             let paths' =
-                neighbors
-                |> List.map (fun neighbor ->
-                    { edges = neighbor :: path
-                      unvisited = unvisited
-                      remaining = remaining - neighbor.cost })
+                List.map
+                    (fun neighbor ->
+                        { edges = neighbor :: path
+                          unvisited = unvisited
+                          remaining = remaining - neighbor.cost })
+                    neighbors
 
             loop (completed' @ completed) (paths' @ paths)
         | _ -> failwith "A path cannot be empty"
@@ -187,3 +191,56 @@ let two lines =
     |> List.map (fun edge -> edge.pt)
     |> Set.ofList
     |> Set.count
+
+// trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
+
+type Path' = { edges: Edge list; score: int }
+
+let two lines =
+    let maze = parse lines
+
+    let start =
+        { pt = maze.entrance
+          direction = E
+          cost = 1 }
+
+    let q = PriorityQueue()
+
+    q.Enqueue({ edges = [ start ]; score = 1 }, 1)
+
+    let vertices = maze.vertices |> Set.add maze.exit
+    let getNeighbors = getEdges vertices
+
+    let rec loop lowestScore winningPaths visited =
+        if q.Count = 0 then
+            winningPaths
+        else
+            match q.Dequeue() with
+            | { score = score } when lowestScore < score -> winningPaths
+            | { edges = current :: _; score = score } as path when current.pt = maze.exit ->
+                loop score (Set.add path winningPaths) visited
+            | { edges = (current :: _) as edges
+                score = score } ->
+                let fold visited neighbor =
+                    let cost = score + neighbor.cost
+                    let previousCost = visited |> Map.tryFind neighbor.pt |> Option.defaultValue maxInt
+
+                    if cost < previousCost then
+                        q.Enqueue(
+                            { edges = neighbor :: edges
+                              score = score + cost },
+                            score
+                        )
+
+                        Map.add neighbor.pt cost visited
+                    else
+                        visited
+
+                current
+                |> getNeighbors
+                |> List.fold fold visited
+                |> loop lowestScore winningPaths
+            | _ -> failwith "A path cannot be empty"
+
+    loop maxInt Set.empty Map.empty |> Set.count |> printfn "%A"
+    0
