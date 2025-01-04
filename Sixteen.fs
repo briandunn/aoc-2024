@@ -1,7 +1,5 @@
 module Sixteen
 
-open System.Collections.Generic
-
 type Pt = int * int
 
 type Maze =
@@ -194,53 +192,91 @@ let two' lines =
 
 // trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
 
-type Path' = { edges: Edge list; score: int }
+module Two =
+    open System.Collections.Generic
 
-let two lines =
-    let maze = parse lines
+    type Placement = { direction: Direction; pt: Pt }
 
-    let start =
-        { pt = maze.entrance
-          direction = E
-          cost = 1 }
+    type Path =
+        { placement: Placement
+          score: int
+          vertices: Pt list }
 
-    let q = PriorityQueue()
+    let canVisit { placement = placement; score = score } visited =
+        visited
+        |> Map.tryFind placement
+        |> function
+            | Some prevScore when prevScore < score -> (visited, false)
+            | _ -> (visited |> Map.add placement score, true)
 
-    q.Enqueue({ edges = [ start ]; score = 1 }, 1)
+    let push (q: PriorityQueue<Path, int>) path = q.Enqueue(path, path.score)
 
-    let vertices = maze.vertices |> Set.add maze.exit
-    let getNeighbors = getEdges vertices
+    let pop (q: PriorityQueue<Path, int>) = q.Dequeue()
 
-    let rec loop lowestScore winningPaths visited =
-        if q.Count = 0 then
-            winningPaths
-        else
-            match q.Dequeue() with
-            | { score = score } when lowestScore < score -> winningPaths
-            | { edges = current :: _; score = score } as path when current.pt = maze.exit ->
-                loop score (Set.add path winningPaths) visited
-            | { edges = (current :: _) as edges
-                score = score } ->
-                let fold visited neighbor =
-                    let cost = score + neighbor.cost
-                    let previousCost = visited |> Map.tryFind neighbor.pt |> Option.defaultValue maxInt
+    let two lines =
+        let maze = parse lines
 
-                    if cost < previousCost then
-                        q.Enqueue(
-                            { edges = neighbor :: edges
-                              score = score + cost },
-                            score
-                        )
+        let vertices = maze.vertices |> Set.add maze.exit
 
-                        Map.add neighbor.pt cost visited
-                    else
+        let neighbors
+            ({ placement = { direction = direction; pt = (x, y) }
+               score = score } as path)
+            =
+            let turn direction =
+                { path with
+                    placement =
+                        { path.placement with
+                            direction = direction }
+                    score = score + 1000 }
+
+            let straight pt direction =
+                if Set.contains pt vertices then
+                    [ { placement = { direction = direction; pt = pt }
+                        score = score + 1
+                        vertices = pt :: path.vertices } ]
+                else
+                    []
+
+            match direction with
+            | N -> straight (x, y - 1) N @ [ turn W; turn E ]
+            | S -> straight (x, y + 1) S @ [ turn W; turn E ]
+            | E -> straight (x + 1, y) E @ [ turn N; turn S ]
+            | W -> straight (x - 1, y) W @ [ turn N; turn S ]
+
+        let q = PriorityQueue()
+
+        let start =
+            { placement = { direction = E; pt = maze.entrance }
+              vertices = [ maze.entrance ]
+              score = 0 }
+
+        push q start
+
+        let rec loop lowestScore winningPaths visited =
+            if q.Count = 0 then
+                winningPaths
+            else
+                match pop q with
+                | { score = score } when lowestScore < score -> winningPaths
+                | { placement = placement
+                    score = score
+                    vertices = vertices } when placement.pt = maze.exit -> loop score (vertices :: winningPaths) visited
+                | path ->
+                    let (visited, mayVisit) = canVisit path visited
+
+                    let fold visited path =
+                        let (visited, mayVisit) = canVisit path visited
+
+                        if mayVisit then
+                            push q path
+
                         visited
 
-                current
-                |> getNeighbors
-                |> List.fold fold visited
-                |> loop lowestScore winningPaths
-            | _ -> failwith "A path cannot be empty"
+                    if mayVisit then
+                        loop lowestScore winningPaths (path |> neighbors |> List.fold fold visited)
+                    else
+                        loop lowestScore winningPaths visited
 
-    loop maxInt Set.empty Map.empty |> Set.count |> printfn "%A"
-    0
+        Map.empty |> loop maxInt [] |> List.concat |> Set.ofList |> Set.count
+
+let two = Two.two
