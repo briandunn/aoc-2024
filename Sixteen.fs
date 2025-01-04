@@ -103,58 +103,34 @@ let print maze path =
 let getEdges q =
     neighbors >> List.filter (fun { pt = pt } -> Set.contains pt q)
 
-let one lines =
-    let maze = parse lines
-
-    let buildPath history =
-        match Map.tryFind maze.exit history with
-        | Some edge ->
-            let rec loop =
-                function
-                | (head :: _) as path ->
-                    match Map.tryFind head.pt history with
-                    | Some edge when edge.pt <> maze.entrance -> loop (edge :: path)
-                    | Some entrance -> entrance :: path
-                    | _ -> path
-                | [] -> []
-
-            loop [ edge ]
-        | None -> []
-
-    let rec loop dist prev q =
+let dijkstra maze =
+    let rec loop dist q =
         function
-        | [] ->
-            prev
+        | [] -> Map.find maze.exit dist
+        | current :: _ when current.pt = maze.exit -> Map.find maze.exit dist
         | current :: starts ->
-            // System.Console.Clear()
-            // print maze (prev |> Map.values |> List.ofSeq)
-            // System.Threading.Thread.Sleep(10)
-            let fold (dist, prev) neighbor =
+            let fold dist neighbor =
                 let cost = dist |> Map.find current.pt |> ((+) neighbor.cost)
                 let previousCost = dist |> Map.tryFind neighbor.pt |> Option.defaultValue maxInt
 
                 if cost < previousCost then
-                    Map.add neighbor.pt cost dist, Map.add neighbor.pt current prev
+                    Map.add neighbor.pt cost dist
                 else
-                    dist, prev
+                    dist
 
             let q = Set.remove current.pt q
-
             let neighbors = getEdges q current
-
-            let dist, prev = List.fold fold (dist, prev) neighbors
-
-            loop dist prev q (List.sortBy (fun { cost = cost } -> cost) (starts @ neighbors))
-
+            let dist = List.fold fold dist neighbors
+            loop dist q (List.sortBy (fun { cost = cost } -> cost) (starts @ neighbors))
 
     let dist = Map.ofList [ maze.entrance, 0 ]
 
     [ { pt = maze.entrance
         direction = E
         cost = 1 } ]
-    |> loop dist Map.empty (maze.vertices |> Set.add maze.exit)
-    |> buildPath
-    |> List.fold (fun acc edge -> acc + edge.cost) 0
+    |> loop dist (maze.vertices |> Set.add maze.exit)
+
+let one: string seq -> int = parse >> dijkstra
 
 let two lines =
     // like djistra but keep all paths?
@@ -177,9 +153,7 @@ let two lines =
 
             let completed' = exits |> List.map (fun exit -> exit :: path)
 
-            let paths' =
-                neighbors
-                |> List.map (fun neighbor -> neighbor :: path, unvisited)
+            let paths' = neighbors |> List.map (fun neighbor -> neighbor :: path, unvisited)
 
             loop (completed' @ completed) (paths' @ paths)
         | _ -> failwith "A path cannot be empty"
