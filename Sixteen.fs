@@ -132,23 +132,9 @@ let dijkstra maze =
 
 let one: string seq -> int = parse >> dijkstra
 
-// trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
-module Two =
-    type Placement = { direction: Direction; pt: Pt }
-
-    type Path =
-        { placement: Placement
-          score: int
-          vertices: Pt list }
-
-    let push path =
-        let change =
-            function
-            | Some values -> path :: values
-            | None -> [ path ]
-            >> Some
-
-        Map.change path.score change
+// type 'a PQ = Map<System.IComparable, 'a list>
+module PQ =
+    let length pq =  pq |> (Map.values >> List.concat >> List.length)
 
     let tryPop q =
         if Map.isEmpty q then
@@ -158,6 +144,24 @@ module Two =
             | _, [] -> None
             | k, [ head ] -> Some(Map.remove k q, head)
             | k, head :: rest -> Some(Map.add k rest q, head)
+
+    let push priority path =
+        let change =
+            function
+            | Some values -> path :: values
+            | None -> [ path ]
+            >> Some
+
+        Map.change priority change
+
+// trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
+module Two =
+    type Placement = { direction: Direction; pt: Pt }
+
+    type Path =
+        { placement: Placement
+          score: int
+          vertices: Pt list }
 
     let two lines =
         let maze = parse lines
@@ -194,7 +198,7 @@ module Two =
             |> Map.tryFind placement
             |> function
                 | Some prevScore when prevScore < score -> (visited, q)
-                | _ -> (Map.add placement score visited, push path q)
+                | _ -> (Map.add placement score visited, PQ.push path.score path q)
 
         let start =
             { placement = { direction = E; pt = maze.entrance }
@@ -202,7 +206,7 @@ module Two =
               score = 0 }
 
         let rec loop lowestScore winningPaths visited q =
-            match tryPop q with
+            match PQ.tryPop q with
             | None -> winningPaths
             | Some(_, { score = score }) when lowestScore < score -> winningPaths
             | Some(q,
@@ -216,7 +220,7 @@ module Two =
 
 
         Map.empty
-        |> push start
+        |> PQ.push start.score start
         |> loop maxInt [] Map.empty
         |> List.concat
         |> List.distinct
