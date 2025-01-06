@@ -30,12 +30,13 @@ type Instruction =
     | Bxc
 
 type Program =
-    { registers: Map<Register, int>
+    { registers: Map<Register, int64>
+      raw: int seq
       instructions: Instruction array }
 
 type State =
-    { registers: Map<Register, int>
-      output: int option
+    { registers: Map<Register, int64>
+      output: int64 option
       instructionPointer: int }
 
 module Instruction =
@@ -57,9 +58,6 @@ module Instruction =
         | Operation.bdv -> Bdv(parseCombo operand)
         | Operation.cdv -> Cdv(parseCombo operand)
         | _ -> failwith "Invalid operation"
-        |> fun o ->
-            printfn "%A" o
-            o
 
     let execute state =
         let combo =
@@ -73,7 +71,7 @@ module Instruction =
 
         let dv o dest =
             let numerator = Map.find A state.registers
-            let denominator = o |> combo |> pown 2
+            let denominator = o |> combo |> int |> pown 2L
             let result = numerator / denominator
 
             { state with
@@ -91,7 +89,7 @@ module Instruction =
 
         | Bst o ->
             { state with
-                registers = Map.add B ((combo o) % 8) state.registers }
+                registers = Map.add B ((combo o) % 8L) state.registers }
             |> inc
 
         | Jnz _ when Map.find A state.registers = 0 -> inc state
@@ -104,7 +102,7 @@ module Instruction =
 
         | Out o ->
             { state with
-                output = Some((combo o) % 8) }
+                output = Some((combo o) % 8L) }
             |> inc
 
 module Regex =
@@ -117,12 +115,7 @@ module Regex =
 
 let parse lines =
     let parseInstructions =
-        let map line = Regex.matches line "([0-7])"
-
-        Seq.map map
-        >> Seq.concat
-        >> Seq.map int
-        >> Seq.chunkBySize 2
+        Seq.chunkBySize 2
         >> Seq.choose (function
             | [| a; b |] -> b |> Instruction.parse a |> Some
             | _ -> None)
@@ -131,21 +124,33 @@ let parse lines =
     let parseRegisters =
 
         let fold acc line =
+            let add k v = Map.add k (int64 v)
+
             match Regex.matches line "([A-C]): (\d+)" with
-            | [ "A"; v ] -> v |> int |> Map.add A
-            | [ "B"; v ] -> v |> int |> Map.add B
-            | [ "C"; v ] -> v |> int |> Map.add C
+            | [ "A"; v ] -> add A v
+            | [ "B"; v ] -> add B v
+            | [ "C"; v ] -> add C v
             | _ -> id
             <| acc
 
         Seq.fold fold Map.empty
 
-    { registers = lines |> Seq.takeWhile ((<>) "") |> parseRegisters
-      instructions = lines |> parseInstructions }
+    let registers = lines |> Seq.takeWhile ((<>) "") |> parseRegisters
+
+    let parseProgram =
+        let map line = Regex.matches line "([0-7])"
+        Seq.map map >> Seq.concat >> Seq.map int
+
+    let raw = lines |> parseProgram |> Seq.cache
+
+    { registers = registers
+      raw = raw
+      instructions = parseInstructions raw }
 
 let run program =
     let rec run state =
-        program.instructions |> Array.tryItem (state.instructionPointer / 2)
+        program.instructions
+        |> Array.tryItem (state.instructionPointer / 2)
         |> function
             | Some instruction ->
                 match Instruction.execute state instruction with
@@ -166,5 +171,18 @@ let one lines =
 let two lines =
     let program = parse lines
 
-    // { program with registers = Map.add A 9000000000 program.registers } |> run |> Seq.map string |> String.concat "," |> printfn "%s"
+    printfn "%A" program.registers
+    program.instructions |> Seq.iter (printfn "%A")
+
+    // values of A that will produce 16 outputs:
+    let min = pown 8L 15
+    let max = (pown 8L 16) - 1L
+
+    // thats still 246 trillion.
+
+    seq { for a in min..max -> a, run { program with registers = Map.add A a program.registers } }
+    |> Seq.tryFind (fun (_, output) -> output |> Seq.zip program.raw |> Seq.forall (fun (r, o) -> (int64 r) = o))
+    |> Option.map fst
+    |> printfn "%A"
+
     0
