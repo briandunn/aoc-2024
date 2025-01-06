@@ -180,9 +180,22 @@ let two lines =
 
     // thats still 246 trillion.
 
-    seq { for a in min..max -> a, run { program with registers = Map.add A a program.registers } }
-    |> Seq.tryFind (fun (_, output) -> output |> Seq.zip program.raw |> Seq.forall (fun (r, o) -> (int64 r) = o))
-    |> Option.map fst
+    let raw = program.raw |> Seq.map int64
+
+    let choose =
+        let tryFind a =
+            { program with
+                registers = Map.add A a program.registers }
+            |> run
+            |> Seq.zip raw
+            |> Seq.forall (fun (r, o) -> r = o)
+
+        Array.Parallel.tryFind tryFind
+
+    seq { min..max }
+    |> Seq.windowed 4096
+    |> Seq.choose choose
+    |> Seq.head
     |> printfn "%A"
 
     0
