@@ -31,11 +31,11 @@ type Instruction =
 
 type Program =
     { registers: Map<Register, int>
-      instructions: int array }
+      instructions: Instruction array }
 
 type State =
     { registers: Map<Register, int>
-      output: int list
+      output: int option
       instructionPointer: int }
 
 module Instruction =
@@ -104,7 +104,7 @@ module Instruction =
 
         | Out o ->
             { state with
-                output = (combo o) % 8 :: state.output }
+                output = Some((combo o) % 8) }
             |> inc
 
 module Regex =
@@ -119,7 +119,14 @@ let parse lines =
     let parseInstructions =
         let map line = Regex.matches line "([0-7])"
 
-        Seq.map map >> Seq.concat >> Seq.map int >> Array.ofSeq
+        Seq.map map
+        >> Seq.concat
+        >> Seq.map int
+        >> Seq.chunkBySize 2
+        >> Seq.choose (function
+            | [| a; b |] -> b |> Instruction.parse a |> Some
+            | _ -> None)
+        >> Seq.toArray
 
     let parseRegisters =
 
@@ -136,34 +143,28 @@ let parse lines =
     { registers = lines |> Seq.takeWhile ((<>) "") |> parseRegisters
       instructions = lines |> parseInstructions }
 
-let one lines =
-    let program = lines |> parse
-    printfn "%A" program
-
-    program.instructions
-    |> Seq.chunkBySize 2
-    |> Seq.iter (function
-        | [| a; b |] -> Instruction.parse a b |> printfn "%A"
-        | _ -> ())
-
+let run program =
     let rec run state =
-        printfn "%A" state
-
-        [ state.instructionPointer; state.instructionPointer + 1 ]
-        |> List.choose (fun i -> program.instructions |> Array.tryItem i)
+        program.instructions |> Array.tryItem (state.instructionPointer / 2)
         |> function
-            | [ operation; operand ] -> run (operand |> Instruction.parse operation |> Instruction.execute state)
-            | _ -> List.rev state.output
+            | Some instruction ->
+                match Instruction.execute state instruction with
+                | { output = Some o } as state -> Some(o, { state with output = None })
+                | state -> run state
+            | _ -> None
 
-    run
-        { instructionPointer = 0
-          registers = program.registers
-          output = [] }
+    { instructionPointer = 0
+      registers = program.registers
+      output = None }
+    |> Seq.unfold run
 
-    |> Seq.map string
-    |> String.concat ","
-    |> printfn "%s"
 
+let one lines =
+    lines |> (parse >> run >> Seq.map string >> String.concat ",") |> printfn "%s"
     0
 
-let two lines = 0
+let two lines =
+    let program = parse lines
+
+    // { program with registers = Map.add A 9000000000 program.registers } |> run |> Seq.map string |> String.concat "," |> printfn "%s"
+    0
