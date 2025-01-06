@@ -23,6 +23,7 @@
     <Compile Include="Fourteen.fs" />
     <Compile Include="Fifteen.fs" />
     <Compile Include="Sixteen.fs" />
+    <Compile Include="Seventeen.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
