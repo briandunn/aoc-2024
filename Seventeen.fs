@@ -8,7 +8,7 @@ type Register =
 
 type Program =
     { registers: Map<Register, int>
-      instructions: int array }
+      instructions: byte array }
 
 module Regex =
     let matches string regex =
@@ -18,14 +18,23 @@ module Regex =
               for s in (Seq.skip 1 m.Groups) do
                   yield s.Value ]
 
+// 000
+// 001
+// 010
+// 011
+// 100
+// 101
+// 110
+// 111
+
 let parse lines =
     let parseInstructions =
-        Seq.head
-        >> String.split "Program: "
-        >> Seq.skip 1
-        >> Seq.head
-        >> String.split ","
-        >> Seq.map int
+        let map line =
+            Regex.matches line "([0-7])"
+
+        Seq.map map
+        >> Seq.concat
+        >> Seq.map byte
         >> Array.ofSeq
 
     let parseRegisters =
