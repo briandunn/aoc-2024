@@ -40,7 +40,7 @@ type State =
 
 module Instruction =
     let parse operation operand =
-        let parseOperand =
+        let parseCombo =
             function
             | 4 -> Register A
             | 5 -> Register B
@@ -48,15 +48,18 @@ module Instruction =
             | v -> v |> Literal
 
         match enum<Operation> operation with
-        | Operation.adv -> Adv(parseOperand operand)
+        | Operation.adv -> Adv(parseCombo operand)
         | Operation.bxl -> Bxl operand
-        | Operation.bst -> Bst(parseOperand operand)
+        | Operation.bst -> Bst(parseCombo operand)
         | Operation.jnz -> Jnz operand
         | Operation.bxc -> Bxc
-        | Operation.out -> Out(parseOperand operand)
-        | Operation.bdv -> Bdv(parseOperand operand)
-        | Operation.cdv -> Cdv(parseOperand operand)
+        | Operation.out -> Out(parseCombo operand)
+        | Operation.bdv -> Bdv(parseCombo operand)
+        | Operation.cdv -> Cdv(parseCombo operand)
         | _ -> failwith "Invalid operation"
+        |> fun o ->
+            printfn "%A" o
+            o
 
     let execute state =
         let combo =
@@ -71,7 +74,7 @@ module Instruction =
         let dv o dest =
             let numerator = Map.find A state.registers
             let denominator = o |> combo |> pown 2
-            let result = (numerator / denominator)
+            let result = numerator / denominator
 
             { state with
                 registers = Map.add dest result state.registers }
@@ -82,10 +85,8 @@ module Instruction =
         | Bdv o -> dv o B
         | Cdv o -> dv o C
         | Bxl o ->
-            let b = Map.find B state.registers
-
             { state with
-                registers = Map.add B (b ||| o) state.registers }
+                registers = Map.change B (Option.map ((^^^) o)) state.registers }
             |> inc
 
         | Bst o ->
@@ -98,7 +99,7 @@ module Instruction =
 
         | Bxc ->
             { state with
-                registers = Map.add B (Map.find B state.registers ||| Map.find C state.registers) state.registers }
+                registers = Map.change B (Option.map ((^^^) (Map.find C state.registers))) state.registers }
             |> inc
 
         | Out o ->
@@ -139,21 +140,28 @@ let one lines =
     let program = lines |> parse
     printfn "%A" program
 
+    program.instructions
+    |> Seq.chunkBySize 2
+    |> Seq.iter (function
+        | [| a; b |] -> Instruction.parse a b |> printfn "%A"
+        | _ -> ())
+
     let rec run state =
         printfn "%A" state
 
         [ state.instructionPointer; state.instructionPointer + 1 ]
         |> List.choose (fun i -> program.instructions |> Array.tryItem i)
         |> function
-            | [ operation; operand ] -> run <| Instruction.execute state (Instruction.parse operation operand)
-            | _ -> state.output |> List.rev
+            | [ operation; operand ] -> run (operand |> Instruction.parse operation |> Instruction.execute state)
+            | _ -> List.rev state.output
 
     run
         { instructionPointer = 0
           registers = program.registers
           output = [] }
 
-    |> List.fold (sprintf "%s%d") ""
+    |> Seq.map string
+    |> String.concat ","
     |> printfn "%s"
 
     0
