@@ -70,12 +70,8 @@ module Instruction =
                 instructionPointer = state.instructionPointer + 2 }
 
         let dv o dest =
-            let numerator = Map.find A state.registers
-            let denominator = o |> combo |> int |> pown 2L
-            let result = numerator / denominator
-
             { state with
-                registers = Map.add dest result state.registers }
+                registers = Map.add dest ((Map.find A state.registers) >>> (o |> combo |> int)) state.registers }
             |> inc
 
         function
@@ -153,6 +149,9 @@ let run program =
         |> Array.tryItem (state.instructionPointer / 2)
         |> function
             | Some instruction ->
+                // state.registers |> Map.iter (printf "%A: %025B\t")
+                // printfn "%A" instruction
+
                 match Instruction.execute state instruction with
                 | { output = Some o } as state -> Some(o, { state with output = None })
                 | state -> run state
@@ -171,31 +170,55 @@ let one lines =
 let two lines =
     let program = parse lines
 
-    printfn "%A" program.registers
-    program.instructions |> Seq.iter (printfn "%A")
+    let permutations =
+        [ for a in 0..7 do
+              for b in 0..7 -> int64 a, int64 b ]
 
-    // values of A that will produce 16 outputs:
-    let min = pown 8L 15
-    let max = (pown 8L 16) - 1L
+    let reverse w a =
+        let map (b', c) =
+            // Adv (Literal 3)
+            let a = a <<< 3
 
-    // thats still 246 trillion.
+            // Cdv (Register B)
+            let a = a ||| (c <<< (int b'))
 
-    let raw = program.raw |> Seq.map int64
+            // Bxl 1
+            let b' = b' ^^^ 1L
 
-    let choose =
-        let tryFind a =
-            { program with
-                registers = Map.add A a program.registers }
-            |> run
-            |> Seq.zip raw
-            |> Seq.forall (fun (r, o) -> r = o)
+            // Bst (Register A)
+            a ||| b'
 
-        Array.Parallel.tryFind tryFind
+        // Bxl 6
+        let b = w ^^^ 6L
 
-    seq { min..max }
-    |> Seq.windowed 4096
-    |> Seq.choose choose
-    |> Seq.head
-    |> printfn "%A"
+        let filter (b', c) = (b' ^^^ c) = b
 
+        permutations
+        // Bxc
+        |> List.filter filter
+        |> List.map map
+
+    let rec loop possibles =
+        function
+        | -1 -> possibles
+        | n ->
+            let expected = program.raw |> Seq.skip n |> Seq.toList |> List.map int64
+
+            let filter a =
+                { program with
+                    registers = Map.ofList [ A, a ] }
+                |> run
+                |> Seq.toList
+                |> ((=) expected)
+
+            let possibles =
+                possibles
+                |> List.map (reverse (List.head expected))
+                |> List.concat
+                |> List.distinct
+                |> List.filter filter
+
+            loop possibles (n - 1)
+
+    (Seq.length program.raw) - 1 |> loop [ 0L ] |> List.min |> printfn "%d"
     0
