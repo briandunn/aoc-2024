@@ -132,28 +132,6 @@ let dijkstra maze =
 
 let one: string seq -> int = parse >> dijkstra
 
-// type 'a PQ = Map<System.IComparable, 'a list>
-module PQ =
-    let length pq =  pq |> (Map.values >> List.concat >> List.length)
-
-    let tryPop q =
-        if Map.isEmpty q then
-            None
-        else
-            match Map.minKeyValue q with
-            | _, [] -> None
-            | k, [ head ] -> Some(Map.remove k q, head)
-            | k, head :: rest -> Some(Map.add k rest q, head)
-
-    let push priority path =
-        let change =
-            function
-            | Some values -> path :: values
-            | None -> [ path ]
-            >> Some
-
-        Map.change priority change
-
 // trying to pilfer https://github.com/mgtezak/Advent_of_Code/blob/master/2024/16/p2.py
 module Two =
     type Placement = { direction: Direction; pt: Pt }

@@ -7,6 +7,7 @@
   <ItemGroup>
     <Compile Include="String.fs" />
     <Compile Include="Grid.fs" />
+    <Compile Include="PQ.fs" />
     <Compile Include="One.fs" />
     <Compile Include="Two.fs" />
     <Compile Include="Three.fs" />
@@ -24,6 +25,7 @@
     <Compile Include="Fifteen.fs" />
     <Compile Include="Sixteen.fs" />
     <Compile Include="Seventeen.fs" />
+    <Compile Include="Eighteen.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
