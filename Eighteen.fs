@@ -30,9 +30,9 @@ let dijkstra walls =
 
     let rec loop q scores =
         match PQ.tryPop q with
-        | None -> Map.tryFind finish scores
-        | Some(_, pt) when pt = finish -> Map.tryFind finish scores
-        | Some(q, pt) ->
+        | None -> None
+        | Some(_, (pt, path)) when pt = finish -> Some(pt :: path)
+        | Some(q, (pt, path)) ->
             let here = Map.find pt scores
             let cost = here + 1
 
@@ -40,14 +40,14 @@ let dijkstra walls =
                 let prev = scores |> Map.tryFind neighbor |> Option.defaultValue maxInt
 
                 if cost < prev then
-                    PQ.push cost neighbor q, Map.add neighbor cost scores
+                    PQ.push cost (neighbor, pt :: path) q, Map.add neighbor cost scores
                 else
                     q, scores
 
             let q, steps = pt |> neighbors |> Set.fold fold (q, scores)
             loop q steps
 
-    loop (PQ.push 0 start Map.empty) (Map.add start 0 Map.empty)
+    loop (PQ.push 0 (start, []) Map.empty) (Map.add start 0 Map.empty)
 
 module One =
     let parse: string seq -> Pt Set =
@@ -57,10 +57,13 @@ module One =
 
     let one = Seq.take 1024 >> parse >> dijkstra
 
-let one: string seq -> int = One.one >> Option.defaultValue -1
+let one: string seq -> int =
+    One.one
+    >> Option.map (fun path -> List.length path - 1)
+    >> Option.defaultValue -1
 
 let two lines =
-    let parse: string seq -> Pt list = Seq.map parseLine >> Seq.toList
+    let parse: string seq -> Pt array = Seq.map parseLine >> Seq.toArray
 
     let walls = parse lines
 
@@ -70,9 +73,18 @@ let two lines =
         if min = max then
             min
         else
-            match walls |> List.take mid |> Set.ofList |> dijkstra with
+            match walls |> Array.take mid |> Set.ofArray |> dijkstra with
             | None -> loop min (mid - 1)
-            | Some _ -> loop (mid + 1) max
+            | Some path ->
+                let path = Set.ofList path
 
-    walls |> List.item (walls |> List.length |> loop 1024) |> printfn "%A"
+                let skipped =
+                    (walls
+                     |> Array.skip mid
+                     |> Array.takeWhile (fun pt -> path |> Set.contains pt |> not)
+                     |> Array.length)
+
+                if skipped = 0 then mid else loop (skipped + mid) max
+
+    walls |> Array.item (walls |> Array.length |> loop 1024) |> printfn "%A"
     0
