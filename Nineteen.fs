@@ -42,33 +42,70 @@ let one lines =
 
     let onsen = parse lines
 
-    let getRemainders =
+    let splitStarts: Pattern -> (Towel * Pattern) list =
         let rec loop towels remainders =
             function
             | _ when towels = [] -> remainders
-            | [] -> [] :: remainders
+            | [] ->
+                (List.fold
+                    (fun acc ->
+                        function
+                        | (_, []) as remainder -> remainder :: acc
+                        | _ -> acc)
+                    []
+                    towels)
+                @ remainders
             | (color :: rest) as pattern ->
                 let fold (towels, remainders) =
                     function
-                    | color' :: towel when color = color' -> (towel :: towels, remainders)
-                    | [] -> (towels, pattern :: remainders)
+                    | (original, color' :: towel) when color = color' -> ((original, towel) :: towels, remainders)
+                    | (original, []) -> (towels, (original, pattern) :: remainders)
                     | _ -> (towels, remainders)
 
                 let towels, remainders = List.fold fold ([], remainders) towels
                 loop towels remainders rest
 
-        loop onsen.towels []
+        loop (List.zip onsen.towels onsen.towels) []
 
-    let isPossible pattern =
-        let rec loop =
+    let splitIntoTowels (pattern: Pattern) : (Towel list) list =
+        let rec loop (finished: Towel list list) : (Towel list * Pattern) list -> (Towel list) list =
+            printfn "%A" finished
             function
-            | []::_ -> true
-            | head :: rest -> loop ((getRemainders head) @ rest)
-            | [] -> false
+            | [] -> finished
+            | (towels, []) :: rest -> loop (towels :: finished) rest
+            | (towels, pattern) :: rest ->
+                loop
+                    finished
+                    ((pattern
+                      |> splitStarts
+                      |> List.fold (fun acc (towel, remainder) -> (towel :: towels, remainder) :: acc) [])
+                     @ rest)
 
-        loop [ pattern ]
+        [ [], pattern ] |> loop [] |> List.map (List.rev)
 
     // 400 too high
-    onsen.patterns |> List.filter isPossible |> List.length
+
+    onsen.patterns |> List.take 1 |> List.map splitStarts |> List.iter (printfn "%A")
+
+    onsen.patterns
+    |> List.take 1
+    |> List.filter (splitIntoTowels >> List.isEmpty >> not)
+    |> List.length
+
+
+let one' lines =
+    let parseTowels =
+        String.split ", "
+        >> Seq.map (sprintf "(?:%s)")
+        >> String.concat "|"
+        >> sprintf "^(?:%s)*$"
+
+    let regexp s = System.Text.RegularExpressions.Regex(s)
+
+    let towels = lines |> Seq.takeWhile ((<>) "") |> Seq.head |> parseTowels |> regexp
+
+    printfn "%A" towels
+
+    lines |> Seq.tail |> Seq.filter (fun s -> towels.IsMatch(s)) |> Seq.length
 
 let two lines = 0
