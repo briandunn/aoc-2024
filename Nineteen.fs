@@ -68,49 +68,25 @@ let one lines =
         loop (List.zip onsen.towels onsen.towels) []
 
     let splitIntoTowels (pattern: Pattern) : (Towel list) list =
-        printfn "pattern: %A" pattern
+        let rec loop finished remainders =
+            if Map.isEmpty remainders then
+                finished
+            else
+                match Map.minKeyValue remainders with
+                | ([], towels) -> loop (towels :: finished) (Map.remove [] remainders)
+                | (pattern, towels) ->
+                    loop
+                        finished
+                        (pattern
+                         |> splitStarts
+                         |> List.fold
+                             (fun acc (towel, remainder) -> Map.add remainder (towel :: towels) acc)
+                             (Map.remove pattern remainders))
 
-        let rec loop (finished: Towel list list) : (Towel list * Pattern) list -> (Towel list) list =
-            function
-            | [] -> finished
-            | (towels, []) :: rest -> loop (towels :: finished) rest
-            // | (towels, []) :: rest -> towels :: finished
-            | (towels, pattern) :: rest ->
-                // printfn "%A" (List.length rest, pattern)
-                loop
-                    finished
-                    (pattern
-                     |> splitStarts
-                     |> List.fold (fun acc (towel, remainder) -> (towel :: towels, remainder) :: acc) []
-                     |> List.append rest)
-
-        loop [] [ [], pattern ] |> List.map (List.rev)
-
-    // 400 too high
-    onsen.towels |> List.sort |> List.iter (printfn "%A")
+        loop [] (Map.ofList [ pattern, [] ]) |> List.map (List.rev)
 
     onsen.patterns
-    |> List.skip 5
-    |> List.take 1
-    // |> fun pattern -> printfn "%A" pattern; pattern
-    |> List.map (List.skip 30)
     |> List.filter (splitIntoTowels >> List.isEmpty >> not)
     |> List.length
-
-
-let one' lines =
-    let parseTowels =
-        String.split ", "
-        >> Seq.map (sprintf "(?:%s)")
-        >> String.concat "|"
-        >> sprintf "^(?:%s)*$"
-
-    let regexp s = System.Text.RegularExpressions.Regex(s)
-
-    let towels = lines |> Seq.takeWhile ((<>) "") |> Seq.head |> parseTowels |> regexp
-
-    printfn "%A" towels
-
-    lines |> Seq.tail |> Seq.filter (fun s -> towels.IsMatch(s)) |> Seq.length
 
 let two lines = 0
