@@ -67,26 +67,23 @@ let one lines =
 
         loop (List.zip onsen.towels onsen.towels) []
 
-    let splitIntoTowels (pattern: Pattern) : (Towel list) list =
-        let rec loop finished remainders =
-            if Map.isEmpty remainders then
-                finished
+    let splitIntoTowels pattern =
+        let rec loop remainders =
+            if Set.contains [] remainders then
+                true
+            elif Set.isEmpty remainders then
+                false
             else
-                match Map.minKeyValue remainders with
-                | ([], towels) -> loop (towels :: finished) (Map.remove [] remainders)
-                | (pattern, towels) ->
-                    loop
-                        finished
-                        (pattern
-                         |> splitStarts
-                         |> List.fold
-                             (fun acc (towel, remainder) -> Map.add remainder (towel :: towels) acc)
-                             (Map.remove pattern remainders))
+                let pattern = Set.minElement remainders
 
-        loop [] (Map.ofList [ pattern, [] ]) |> List.map (List.rev)
+                loop (
+                    pattern
+                    |> splitStarts
+                    |> List.fold (fun acc (_, remainder) -> Set.add remainder acc) (Set.remove pattern remainders)
+                )
 
-    onsen.patterns
-    |> List.filter (splitIntoTowels >> List.isEmpty >> not)
-    |> List.length
+        loop (Set.singleton pattern)
+
+    onsen.patterns |> List.filter splitIntoTowels |> List.length
 
 let two lines = 0
