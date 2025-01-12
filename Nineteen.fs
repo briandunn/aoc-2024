@@ -42,30 +42,29 @@ let one lines =
 
     let onsen = parse lines
 
-    let splitStarts: Pattern -> (Towel * Pattern) list =
-        let rec loop towels remainders =
+    let splitStarts: Pattern -> Pattern list =
+        let rec loop (towels: Towel list) (remainders: Pattern list) =
             function
             | _ when towels = [] -> remainders
             | [] ->
                 (List.fold
                     (fun acc ->
                         function
-                        | (_, []) as remainder -> remainder :: acc
+                        | [] -> [] :: acc
                         | _ -> acc)
-                    []
+                    remainders
                     towels)
-                @ remainders
             | (color :: rest) as pattern ->
-                let fold (towels, remainders) =
+                let fold (towels, remainders) : Towel -> (Towel list) * (Pattern list) =
                     function
-                    | (original, color' :: towel) when color = color' -> ((original, towel) :: towels, remainders)
-                    | (original, []) -> (towels, (original, pattern) :: remainders)
-                    | _ -> (towels, remainders)
+                    | color' :: towel when color = color' -> (towel :: towels), remainders
+                    | [] -> towels, (pattern :: remainders)
+                    | _ -> towels, remainders
 
                 let towels, remainders = List.fold fold ([], remainders) towels
                 loop towels remainders rest
 
-        loop (List.zip onsen.towels onsen.towels) []
+        loop onsen.towels []
 
     let splitIntoTowels pattern =
         let rec loop remainders =
@@ -79,7 +78,7 @@ let one lines =
                 loop (
                     pattern
                     |> splitStarts
-                    |> List.fold (fun acc (_, remainder) -> Set.add remainder acc) (Set.remove pattern remainders)
+                    |> List.fold (fun acc remainder -> Set.add remainder acc) (Set.remove pattern remainders)
                 )
 
         loop (Set.singleton pattern)
