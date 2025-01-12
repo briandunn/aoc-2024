@@ -68,27 +68,32 @@ let one lines =
         loop (List.zip onsen.towels onsen.towels) []
 
     let splitIntoTowels (pattern: Pattern) : (Towel list) list =
+        printfn "pattern: %A" pattern
+
         let rec loop (finished: Towel list list) : (Towel list * Pattern) list -> (Towel list) list =
-            printfn "%A" finished
             function
             | [] -> finished
             | (towels, []) :: rest -> loop (towels :: finished) rest
+            // | (towels, []) :: rest -> towels :: finished
             | (towels, pattern) :: rest ->
+                // printfn "%A" (List.length rest, pattern)
                 loop
                     finished
-                    ((pattern
-                      |> splitStarts
-                      |> List.fold (fun acc (towel, remainder) -> (towel :: towels, remainder) :: acc) [])
-                     @ rest)
+                    (pattern
+                     |> splitStarts
+                     |> List.fold (fun acc (towel, remainder) -> (towel :: towels, remainder) :: acc) []
+                     |> List.append rest)
 
-        [ [], pattern ] |> loop [] |> List.map (List.rev)
+        loop [] [ [], pattern ] |> List.map (List.rev)
 
     // 400 too high
-
-    onsen.patterns |> List.take 1 |> List.map splitStarts |> List.iter (printfn "%A")
+    onsen.towels |> List.sort |> List.iter (printfn "%A")
 
     onsen.patterns
+    |> List.skip 5
     |> List.take 1
+    // |> fun pattern -> printfn "%A" pattern; pattern
+    |> List.map (List.skip 30)
     |> List.filter (splitIntoTowels >> List.isEmpty >> not)
     |> List.length
 
