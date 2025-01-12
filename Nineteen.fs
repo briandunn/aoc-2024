@@ -1,36 +1,15 @@
 module Nineteen
 
-type Color =
-    | White
-    | Blue
-    | Black
-    | Red
-    | Green
-
-type Towel = Color list
-
-type Pattern = Color list
-
 type Onsen =
-    { towels: Towel list
-      patterns: Pattern list }
+    { towels: char list list
+      patterns: char list list }
 
 let one lines =
     let parse lines =
-        let parsePattern pattern =
-            seq {
-                for c in pattern do
-                    match c with
-                    | 'w' -> yield White
-                    | 'u' -> yield Blue
-                    | 'b' -> yield Black
-                    | 'r' -> yield Red
-                    | 'g' -> yield Green
-                    | _ -> ()
-            }
-            |> Seq.toList
 
-        let parseTowels = String.split ", " >> Seq.map parsePattern >> List.ofSeq
+        let parseCharList = Seq.map (String.chars >> List.ofSeq) >> List.ofSeq
+
+        let parseTowels = String.split ", " >> parseCharList
 
         { towels =
             lines
@@ -38,12 +17,12 @@ let one lines =
             |> Seq.tryHead
             |> Option.map parseTowels
             |> Option.defaultValue []
-          patterns = lines |> Seq.tail |> Seq.map parsePattern |> Seq.toList }
+          patterns = lines |> Seq.tail |> parseCharList }
 
     let onsen = parse lines
 
-    let splitStarts: Pattern -> Pattern list =
-        let rec loop (towels: Towel list) (remainders: Pattern list) =
+    let splitStarts =
+        let rec loop towels remainders =
             function
             | _ when towels = [] -> remainders
             | [] ->
@@ -55,10 +34,10 @@ let one lines =
                     remainders
                     towels)
             | (color :: rest) as pattern ->
-                let fold (towels, remainders) : Towel -> (Towel list) * (Pattern list) =
+                let fold (towels, remainders) =
                     function
-                    | color' :: towel when color = color' -> (towel :: towels), remainders
-                    | [] -> towels, (pattern :: remainders)
+                    | color' :: towel when color = color' -> towel :: towels, remainders
+                    | [] -> towels, pattern :: remainders
                     | _ -> towels, remainders
 
                 let towels, remainders = List.fold fold ([], remainders) towels
