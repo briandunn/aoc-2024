@@ -42,20 +42,25 @@ let parse lines =
 
 let one lines =
     let gap = 100
+    let track = lines |> parse |> Array.ofList
 
-    let rec loop count =
-        function
-        | head :: rest when List.length rest > gap + 1 ->
-            loop
-                (rest
-                 |> List.skip gap
-                 |> Set.ofList
-                 |> Set.intersect (neighbors 2 head)
-                 |> Set.count
-                 |> ((+) count))
-                rest
-        | _ -> count
+    let rec loop count i =
+        let rest = i + gap
 
-    loop 0 (parse lines)
+        if Array.length track - rest < 1 then
+            count
+        else
+            let pt = Array.item i track
+            let withinJump = neighbors 2 pt
+
+            let fold (i, count) pt =
+                if i > rest && Set.contains pt withinJump then
+                    i + 1, count + 1
+                else
+                    i + 1, count
+
+            loop (track |> Array.fold fold (0, count) |> snd) (i + 1)
+
+    loop 0 0
 
 let two lines = 0
