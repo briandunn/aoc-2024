@@ -49,42 +49,35 @@ let one lines =
 let two lines =
     let onsen = parse lines
 
-    let splitStarts (pattern: string) : (string * string) list =
+    let splitStarts (pattern: string) : string list =
         let fold acc (towel: string) =
             match pattern.Split(towel, 2) with
-            | [| ""; rest |] -> (towel, rest) :: acc
+            | [| ""; rest |] -> rest :: acc
             | _ -> acc
 
         List.fold fold [] onsen.towels
 
-
     let allArrangements pattern =
-        printfn "%A" pattern
-
         let rec loop remainders =
             if Map.isEmpty remainders then
-                []
+                0L
             elif remainders |> Map.keys |> Seq.tryExactlyOne = Some("") then
                 Map.find "" remainders
             else
-                let pattern, arrangements = remainders |> Map.remove "" |> Map.minKeyValue
+                let pattern, arrangementCount = remainders |> Map.remove "" |> Map.minKeyValue
 
-                let fold acc ((towel, remainder): string * string) =
-                    let arrangements =
-                        match arrangements with
-                        | [] -> [ [ towel ] ]
-                        | arrangements -> List.map (fun arrangement -> towel :: arrangement) arrangements
-
+                let fold acc (remainder: string) =
                     let change =
                         function
-                        | Some previousArrangements -> arrangements @ previousArrangements
-                        | None -> arrangements
+                        | Some previousArrangementCount -> arrangementCount + previousArrangementCount
+                        | None -> arrangementCount
                         >> Some
 
                     Map.change remainder change acc
 
                 loop (pattern |> splitStarts |> List.fold fold remainders |> Map.remove pattern)
 
-        loop (Map.ofList [ pattern, [] ]) |> List.map List.rev
+        loop (Map.ofList [ pattern, 1L ]) |> int64
 
-    List.sumBy (allArrangements >> List.length) onsen.patterns
+    List.sumBy allArrangements onsen.patterns |> printfn "%d"
+    0
