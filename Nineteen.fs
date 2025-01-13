@@ -16,68 +16,65 @@ let parse lines =
         |> Option.defaultValue []
       patterns = lines |> Seq.tail |> Seq.toList }
 
+let splitStarts towels (pattern: string)  =
+    let fold acc (towel: string) =
+        match pattern.Split(towel, 2) with
+        | [| ""; rest |] -> rest :: acc
+        | _ -> acc
+
+    List.fold fold [] towels
+
 let one lines =
     let onsen = parse lines
 
-    let splitStarts (pattern: string) : string list =
-        let fold acc (towel: string) =
-            match pattern.Split(towel, 2) with
-            | [| ""; rest |] -> rest :: acc
-            | _ -> acc
+    let splitStarts = splitStarts onsen.towels
 
-        List.fold fold [] onsen.towels
+    let rec loopSplits remainders =
+        function
+        | [] -> false, remainders
+        | "" :: _ -> true, remainders
+        | remainder :: rest -> loopSplits (Set.add remainder remainders) rest
 
-    let splitIntoTowels pattern =
-        let rec loop (remainders: string Set) =
-            if Set.contains "" remainders then
-                true
+    let canBeArranged pattern =
+        let rec loop isDone (remainders: string Set) =
+            if isDone then
+                1
             elif Set.isEmpty remainders then
-                false
+                0
             else
                 let pattern = Set.minElement remainders
 
-                loop (
-                    pattern
-                    |> splitStarts
-                    |> List.fold (fun acc remainder -> Set.add remainder acc) (Set.remove pattern remainders)
-                )
+                let isDone, remainders' = loopSplits Set.empty (splitStarts pattern)
 
-        loop (Set.singleton pattern)
+                loop isDone (remainders |> Set.remove pattern |> Set.union remainders')
 
-    onsen.patterns |> List.filter splitIntoTowels |> List.length
+        loop false (Set.singleton pattern)
+
+    List.sumBy canBeArranged onsen.patterns
 
 let two lines =
     let onsen = parse lines
 
-    let splitStarts (pattern: string) : string list =
-        let fold acc (towel: string) =
-            match pattern.Split(towel, 2) with
-            | [| ""; rest |] -> rest :: acc
-            | _ -> acc
-
-        List.fold fold [] onsen.towels
+    let splitStarts = splitStarts onsen.towels
 
     let allArrangements pattern =
-        let rec loop remainders =
+        let rec loop total remainders =
             if Map.isEmpty remainders then
-                0L
-            elif remainders |> Map.keys |> Seq.tryExactlyOne = Some("") then
-                Map.find "" remainders
+                total
             else
-                let pattern, arrangementCount = remainders |> Map.remove "" |> Map.minKeyValue
+                let pattern, arrangementCount = Map.minKeyValue remainders
+                let change = Option.defaultValue 0L >> ((+)) arrangementCount >> Some
 
-                let fold acc (remainder: string) =
-                    let change =
-                        function
-                        | Some previousArrangementCount -> arrangementCount + previousArrangementCount
-                        | None -> arrangementCount
-                        >> Some
+                let fold (total, remainders) =
+                    function
+                    | "" -> total + arrangementCount, remainders
+                    | remainder -> total, Map.change remainder change remainders
 
-                    Map.change remainder change acc
+                let total, remainders = pattern |> splitStarts |> List.fold fold (total, remainders)
 
-                loop (pattern |> splitStarts |> List.fold fold remainders |> Map.remove pattern)
+                loop total (Map.remove pattern remainders)
 
-        loop (Map.ofList [ pattern, 1L ]) |> int64
+        loop 0L (Map.ofList [ pattern, 1L ])
 
     List.sumBy allArrangements onsen.patterns |> printfn "%d"
     0
