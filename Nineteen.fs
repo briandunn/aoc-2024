@@ -1,14 +1,12 @@
 module Nineteen
 
 type Onsen =
-    { towels: char list list
-      patterns: char list list }
+    { towels: string list
+      patterns: string list }
 
 let parse lines =
 
-    let parseCharList = Seq.map (String.chars >> List.ofSeq) >> List.ofSeq
-
-    let parseTowels = String.split ", " >> parseCharList
+    let parseTowels = String.split ", " >> Seq.toList
 
     { towels =
         lines
@@ -16,40 +14,22 @@ let parse lines =
         |> Seq.tryHead
         |> Option.map parseTowels
         |> Option.defaultValue []
-      patterns = lines |> Seq.tail |> parseCharList }
-
-let splitStarts towels =
-    let rec loop towels remainders =
-        function
-        | _ when towels = [] -> remainders
-        | [] ->
-            (List.fold
-                (fun acc ->
-                    function
-                    | [] -> [] :: acc
-                    | _ -> acc)
-                remainders
-                towels)
-        | (color :: rest) as pattern ->
-            let fold (towels, remainders) =
-                function
-                | color' :: towel when color = color' -> towel :: towels, remainders
-                | [] -> towels, pattern :: remainders
-                | _ -> towels, remainders
-
-            let towels, remainders = List.fold fold ([], remainders) towels
-            loop towels remainders rest
-
-    loop towels []
-
+      patterns = lines |> Seq.tail |> Seq.toList }
 
 let one lines =
-
     let onsen = parse lines
 
+    let splitStarts (pattern: string) : string list =
+        let fold acc (towel: string) =
+            match pattern.Split(towel, 2) with
+            | [| ""; rest |] -> rest :: acc
+            | _ -> acc
+
+        List.fold fold [] onsen.towels
+
     let splitIntoTowels pattern =
-        let rec loop remainders =
-            if Set.contains [] remainders then
+        let rec loop (remainders: string Set) =
+            if Set.contains "" remainders then
                 true
             elif Set.isEmpty remainders then
                 false
@@ -58,7 +38,7 @@ let one lines =
 
                 loop (
                     pattern
-                    |> splitStarts onsen.towels
+                    |> splitStarts
                     |> List.fold (fun acc remainder -> Set.add remainder acc) (Set.remove pattern remainders)
                 )
 
@@ -69,31 +49,42 @@ let one lines =
 let two lines =
     let onsen = parse lines
 
-    let countCombinations pattern =
+    let splitStarts (pattern: string) : (string * string) list =
+        let fold acc (towel: string) =
+            match pattern.Split(towel, 2) with
+            | [| ""; rest |] -> (towel, rest) :: acc
+            | _ -> acc
+
+        List.fold fold [] onsen.towels
+
+
+    let allArrangements pattern =
         printfn "%A" pattern
+
         let rec loop remainders =
-            Map.iter (printfn "%A %d") remainders
-
             if Map.isEmpty remainders then
-                0
-            elif remainders |> Map.keys |> Seq.tryExactlyOne = Some([]) then
-                Map.find [] remainders
+                []
+            elif remainders |> Map.keys |> Seq.tryExactlyOne = Some("") then
+                Map.find "" remainders
             else
-                let pattern, count = Map.minKeyValue remainders
+                let pattern, arrangements = remainders |> Map.remove "" |> Map.minKeyValue
 
-                let change =
-                    function
-                    // | Some prevCount -> Some(prevCount + count)
-                    | Some prevCount -> Some(prevCount + 1)
-                    | None -> Some (count + 1)
+                let fold acc ((towel, remainder): string * string) =
+                    let arrangements =
+                        match arrangements with
+                        | [] -> [ [ towel ] ]
+                        | arrangements -> List.map (fun arrangement -> towel :: arrangement) arrangements
 
-                loop (
-                    pattern
-                    |> splitStarts onsen.towels
-                    |> List.fold (fun acc remainder -> Map.change remainder change acc) remainders
-                    |> Map.remove pattern
-                )
+                    let change =
+                        function
+                        | Some previousArrangements -> arrangements @ previousArrangements
+                        | None -> arrangements
+                        >> Some
 
-        loop (Map.ofList [ pattern, 0 ])
+                    Map.change remainder change acc
 
-    List.sumBy countCombinations (List.take 1 onsen.patterns)// onsen.patterns
+                loop (pattern |> splitStarts |> List.fold fold remainders |> Map.remove pattern)
+
+        loop (Map.ofList [ pattern, [] ]) |> List.map List.rev
+
+    List.sumBy (allArrangements >> List.length) onsen.patterns
