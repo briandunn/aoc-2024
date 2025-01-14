@@ -2,7 +2,7 @@ module Twenty
 
 type Pt = int * int
 
-type Track = Pt list
+type Track = Pt array
 
 let neighbors dist (x, y) =
     Set.ofList [ x, y - dist; x - dist, y; x + dist, y; x, y + dist ]
@@ -20,7 +20,7 @@ let parse lines =
                 | None -> []
             | _ -> []
 
-        loop pts [ start ]
+        loop pts [ start ] |> Array.ofList
 
     seq {
         for y, line in Seq.indexed lines do
@@ -38,29 +38,30 @@ let parse lines =
         (None, None, Set.empty)
     |> function
         | Some start, Some stop, track -> buildTrack (Set.add stop track) start stop
-        | _ -> []
+        | _ -> Array.empty
 
-let one lines =
-    let gap = 100
-    let track = lines |> parse |> Array.ofList
+let dist (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
 
-    let rec loop count i =
-        let rest = i + gap
+let countJumps gap maxCheat track =
+    let trackLength = Array.length track
 
-        if Array.length track - rest < 1 then
+    let rec loop count cheatStartIndex =
+        if trackLength - cheatStartIndex - gap < 1 then
             count
         else
-            let pt = Array.item i track
-            let withinJump = neighbors 2 pt
+            let cheatStart = Array.item cheatStartIndex track
 
-            let fold (i, count) pt =
-                if i > rest && Set.contains pt withinJump then
-                    i + 1, count + 1
+            let fold (cheatStopIndex, count) cheatStop =
+                let jumpDist = dist cheatStart cheatStop
+
+                if jumpDist <= maxCheat && cheatStopIndex - cheatStartIndex - jumpDist >= gap then
+                    cheatStopIndex + 1, count + 1
                 else
-                    i + 1, count
+                    cheatStopIndex + 1, count
 
-            loop (track |> Array.fold fold (0, count) |> snd) (i + 1)
+            loop (track |> Array.fold fold (0, count) |> snd) (cheatStartIndex + 1)
 
     loop 0 0
 
-let two lines = 0
+let one: string seq -> int = parse >> countJumps 100 2
+let two: string seq -> int = parse >> countJumps 100 20
