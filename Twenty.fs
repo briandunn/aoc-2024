@@ -10,34 +10,31 @@ let neighbors dist (x, y) =
 let parse lines =
     let neighbors = neighbors 1
 
-    let buildTrack pts start stop =
+    let buildTrack pts start =
         let rec loop pts =
             function
             | (head :: _) as track ->
-                match neighbors head |> Set.intersect pts |> Seq.tryExactlyOne with
+                match head |> neighbors |> Set.intersect pts |> Seq.tryExactlyOne with
                 | Some next -> loop (Set.remove next pts) (next :: track)
-                | None when head = stop -> List.rev track
-                | None -> []
+                | None -> List.rev track
             | _ -> []
 
         loop pts [ start ] |> Array.ofList
 
     seq {
         for y, line in Seq.indexed lines do
-            for x, c in Seq.indexed line do
-                if c = '.' || c = 'S' || c = 'E' then
-                    yield x, y, c
+            for x, c in Seq.indexed line -> x, y, c
     }
     |> Seq.fold
-        (fun ((start, stop, track) as acc) ->
+        (fun ((start, track) as acc) ->
             function
-            | x, y, '.' -> (start, stop, Set.add (x, y) track)
-            | x, y, 'E' -> (start, Some(x, y), track)
-            | x, y, 'S' -> (Some(x, y), stop, track)
+            | x, y, '.'
+            | x, y, 'E' -> (start, Set.add (x, y) track)
+            | x, y, 'S' -> (Some(x, y), track)
             | _ -> acc)
-        (None, None, Set.empty)
+        (None, Set.empty)
     |> function
-        | Some start, Some stop, track -> buildTrack (Set.add stop track) start stop
+        | Some start, track -> buildTrack track start
         | _ -> Array.empty
 
 let dist (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
