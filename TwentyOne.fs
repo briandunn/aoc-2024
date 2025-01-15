@@ -29,27 +29,37 @@ let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list)
     let rec loop shortest completed scores pq =
         match PQ.tryPop pq with
         | None -> completed
-        | Some(_, (pt, path)) when pt = finish && List.length path > shortest -> completed
-        | Some(pq, (pt, path)) when pt = finish -> loop (List.length path) (path::completed) scores pq
+        | Some(_, (pt, _)) when pt = finish && (Map.find pt scores) > shortest -> completed
+        | Some(pq, (pt, path)) when pt = finish -> loop (Map.find pt scores) (path :: completed) scores pq
         | Some(pq, (pt, path)) ->
-            let here = Map.find pt scores
-            let cost = here + 1
-
             let fold (pq, scores) (direction, neighbor) =
+                let score =
+                    path
+                    |> List.tryHead
+                    |> Option.map (
+                        (function
+                        | prevDirection when prevDirection = direction -> 1
+                        | _ -> 100)
+                        >> ((+) (Map.find pt scores))
+                    )
+                    |> Option.defaultValue maxInt
+
                 scores
                 |> Map.tryFind neighbor
                 |> function
-                   | Some prevScore when prevScore < cost -> (pq, scores)
-                   | _ -> PQ.push cost (neighbor, direction :: path) pq, Map.add neighbor cost scores
+                    | Some prevScore when prevScore < score -> (pq, scores)
+                    | _ -> PQ.push score (neighbor, direction :: path) pq, Map.add neighbor score scores
 
             let pq, scores = pt |> neighbors |> List.fold fold (pq, scores)
             loop shortest completed scores pq
 
-    let shortestPaths = loop maxInt [] (Map.add start 0 Map.empty) (PQ.push 0 (start, []) Map.empty)
-    let shortestPath = List.randomChoice shortestPaths
-    print shortestPath
+    let shortestPaths =
+        loop maxInt [] (Map.add start 0 Map.empty) (PQ.push 0 (start, []) Map.empty)
 
-    (finish, shortestPath)
+    //printfn "Shortest paths from %A to %A" start finish
+    // List.iter print (List.sortBy List.length shortestPaths)
+
+    (finish, List.head (List.sortBy List.length shortestPaths))
 
 module NumPad =
     type Key =
@@ -168,8 +178,17 @@ let numericPart =
     List.rev >> List.fold fold (0, 0) >> snd
 
 let complexity code =
-    (code |> moves |> List.length) * (numericPart code)
+    (code
+     |> moves
+     |> List.length
+     |> fun l ->
+         printfn "length:%d" l
+         l)
+    * (numericPart code)
 
-let one: string seq -> int = parse >> List.take 1 >> List.map complexity >> List.sum
+let one: string seq -> int = parse >> List.map complexity >> List.sum
 
 let two lines = 0
+
+// <v<A>>^AvA^A< vA<AA>>^AAvA<^A>A
+// <<vA^>>AvA^A< <vA^>>A<<vA>A>^AA<A>vA^
