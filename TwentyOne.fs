@@ -2,6 +2,8 @@ module TwentyOne
 
 type Pt = int * int
 
+let maxInt = System.Int32.MaxValue
+
 type Direction =
     | U
     | D
@@ -9,10 +11,45 @@ type Direction =
     | R
     | A
 
-let moveBetween ((x', y') as dest) (x, y) =
-    dest,
-    List.replicate (abs (x - x')) (if x < x' then R else L)
-    @ List.replicate (abs (y - y')) (if y < y' then D else U)
+let print =
+    List.map (function
+        | U -> "^"
+        | D -> "v"
+        | L -> "<"
+        | R -> ">"
+        | A -> "A")
+    >> String.concat ""
+    >> printfn "%s"
+
+let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list) =
+    let neighbors (x, y) =
+        [ R, (x + 1, y); L, (x - 1, y); D, (x, y + 1); U, (x, y - 1) ]
+        |> List.filter (fun (d, pt) -> Set.contains pt valid)
+
+    let rec loop shortest completed scores pq =
+        match PQ.tryPop pq with
+        | None -> completed
+        | Some(_, (pt, path)) when pt = finish && List.length path > shortest -> completed
+        | Some(pq, (pt, path)) when pt = finish -> loop (List.length path) (path::completed) scores pq
+        | Some(pq, (pt, path)) ->
+            let here = Map.find pt scores
+            let cost = here + 1
+
+            let fold (pq, scores) (direction, neighbor) =
+                scores
+                |> Map.tryFind neighbor
+                |> function
+                   | Some prevScore when prevScore < cost -> (pq, scores)
+                   | _ -> PQ.push cost (neighbor, direction :: path) pq, Map.add neighbor cost scores
+
+            let pq, scores = pt |> neighbors |> List.fold fold (pq, scores)
+            loop shortest completed scores pq
+
+    let shortestPaths = loop maxInt [] (Map.add start 0 Map.empty) (PQ.push 0 (start, []) Map.empty)
+    let shortestPath = List.randomChoice shortestPaths
+    print shortestPath
+
+    (finish, shortestPath)
 
 module NumPad =
     type Key =
@@ -30,6 +67,14 @@ module NumPad =
 
     let start = 2, 3
 
+    let valid =
+        seq {
+            for x in 0..2 do
+                for y in 0..3 -> x, y
+        }
+        |> Set.ofSeq
+        |> Set.remove (0, 3)
+
     let moveTo =
         function
         | Zero -> (1, 3)
@@ -43,10 +88,18 @@ module NumPad =
         | Eight -> (1, 0)
         | Nine -> (2, 0)
         | A -> (2, 3)
-        >> moveBetween
+        >> moveBetween valid
 
 module DPad =
     let start = 2, 0
+
+    let valid =
+        seq {
+            for x in 0..2 do
+                for y in 0..1 -> x, y
+        }
+        |> Set.ofSeq
+        |> Set.remove (0, 0)
 
     let moveTo =
         function
@@ -55,7 +108,7 @@ module DPad =
         | L -> (0, 1)
         | R -> (2, 1)
         | A -> (2, 0)
-        >> moveBetween
+        >> moveBetween valid
 
 
 let parse: string seq -> NumPad.Key list list =
@@ -79,23 +132,17 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-let print =
-    List.map (function
-        | U -> "^"
-        | D -> "v"
-        | L -> "<"
-        | R -> ">"
-        | A -> "A")
-    >> String.concat ""
-    >> printfn "%s"
-
 let moves code =
     let expand move start =
         let fold (position, moves) key =
             let dest, moves' = move key position
             dest, moves @ moves' @ [ A ]
 
-        List.fold fold (start, []) >> snd >> fun x -> print x; x
+        List.fold fold (start, [])
+        >> snd
+        >> fun x ->
+            print x
+            x
 
     code
     |> expand NumPad.moveTo NumPad.start
