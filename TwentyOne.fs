@@ -28,7 +28,7 @@ module NumPad =
         | Nine
         | A
 
-    let start = 2,3
+    let start = 2, 3
 
     let moveTo =
         function
@@ -46,7 +46,7 @@ module NumPad =
         >> moveBetween
 
 module DPad =
-    let start = 2,0
+    let start = 2, 0
 
     let moveTo =
         function
@@ -79,11 +79,28 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
+let print =
+    List.map (function
+        | U -> "^"
+        | D -> "v"
+        | L -> "<"
+        | R -> ">"
+        | A -> "A")
+    >> String.concat ""
+    >> printfn "%s"
+
 let moves code =
-    let fold (position, moves) key =
-        let dest, moves' = NumPad.moveTo key position
-        dest, moves @ moves' @ [A]
-    code |> List.fold fold (NumPad.start, []) |> snd |> fun x -> printfn "%A" x; x
+    let expand move start =
+        let fold (position, moves) key =
+            let dest, moves' = move key position
+            dest, moves @ moves' @ [ A ]
+
+        List.fold fold (start, []) >> snd >> fun x -> print x; x
+
+    code
+    |> expand NumPad.moveTo NumPad.start
+    |> expand DPad.moveTo DPad.start
+    |> expand DPad.moveTo DPad.start
 
 let numericPart =
     let fold (place, acc) =
@@ -101,10 +118,11 @@ let numericPart =
         | _ -> 0, 0
         >> fun (shift, n) -> (place + shift, acc + n * pown 10 place)
 
-    List.rev >> List.fold fold (0,0) >> snd
+    List.rev >> List.fold fold (0, 0) >> snd
 
-let complexity code = (code |> moves |> List.length) * (numericPart code)
+let complexity code =
+    (code |> moves |> List.length) * (numericPart code)
 
-let one : string seq -> int = parse >> List.take 1 >> List.map complexity >> List.sum
+let one: string seq -> int = parse >> List.take 1 >> List.map complexity >> List.sum
 
 let two lines = 0
