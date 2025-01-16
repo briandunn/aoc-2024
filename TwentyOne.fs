@@ -32,7 +32,7 @@ let move d (x, y) =
 let neighbors pt =
     List.map (fun d -> d, move d pt) [ R; D; U; L ]
 
-let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list) =
+let moveBetween' (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list) =
     let neighbors = neighbors >> List.filter (fun (_, pt) -> Set.contains pt valid)
 
     let rec loop shortest completed scores pq =
@@ -68,6 +68,37 @@ let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list)
     //     List.iter print shortestPaths
 
     (finish, List.head shortestPaths)
+
+let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * (Direction list) =
+    let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
+    let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
+
+    let toPoints =
+        let fold (pt, points) d =
+            let pt = move d pt
+            pt, pt :: points
+
+        List.fold fold ((x', y'), []) >> snd >> Set.ofList
+
+    let isValid =
+        toPoints
+        // >> fun x ->
+        //     printfn "valid: %A" valid
+        //     printfn "pts: %A" x
+        //     x
+        >> Set.isSuperset valid
+
+    let paths =
+        List.distinct [ vertical @ horizontal; horizontal @ vertical ] |> List.rev
+
+    // if List.length paths = 2 && List.forall isValid paths then
+    //     printfn "choice"
+    // List.iter print paths
+
+    let path = List.find isValid paths
+
+    (finish, path)
+
 
 module NumPad =
     type Key =
