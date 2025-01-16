@@ -21,28 +21,35 @@ let print =
     >> String.concat ""
     >> printfn "%s"
 
+let move d (x, y) =
+    match d with
+    | U -> x, y - 1
+    | D -> x, y + 1
+    | L -> x - 1, y
+    | R -> x + 1, y
+    | A -> x, y
+
+let neighbors pt =
+    List.map (fun d -> d, move d pt) [ R; D; U; L ]
+
 let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list) =
-    let neighbors (x, y) =
-        [ R, (x + 1, y); L, (x - 1, y); D, (x, y + 1); U, (x, y - 1) ]
-        |> List.filter (fun (d, pt) -> Set.contains pt valid)
+    let neighbors = neighbors >> List.filter (fun (_, pt) -> Set.contains pt valid)
 
     let rec loop shortest completed scores pq =
         match PQ.tryPop pq with
-        | None -> completed
+        | None -> List.map List.rev completed
         | Some(_, (pt, _)) when pt = finish && (Map.find pt scores) > shortest -> completed
         | Some(pq, (pt, path)) when pt = finish -> loop (Map.find pt scores) (path :: completed) scores pq
         | Some(pq, (pt, path)) ->
+            let score = Map.find pt scores
+
             let fold (pq, scores) (direction, neighbor) =
                 let score =
                     path
                     |> List.tryHead
-                    |> Option.map (
-                        (function
-                        | prevDirection when prevDirection = direction -> 1
-                        | _ -> 100)
-                        >> ((+) (Map.find pt scores))
-                    )
-                    |> Option.defaultValue maxInt
+                    |> function
+                        | Some d when d = direction -> score + 1
+                        | _ -> score + 10
 
                 scores
                 |> Map.tryFind neighbor
@@ -56,10 +63,11 @@ let moveBetween (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list)
     let shortestPaths =
         loop maxInt [] (Map.add start 0 Map.empty) (PQ.push 0 (start, []) Map.empty)
 
-    //printfn "Shortest paths from %A to %A" start finish
-    // List.iter print (List.sortBy List.length shortestPaths)
+    // if List.length shortestPaths > 1 then
+    //     printfn "Shortest paths from %A to %A" start finish
+    //     List.iter print shortestPaths
 
-    (finish, List.head (List.sortBy List.length shortestPaths))
+    (finish, List.head shortestPaths)
 
 module NumPad =
     type Key =
@@ -85,19 +93,34 @@ module NumPad =
         |> Set.ofSeq
         |> Set.remove (0, 3)
 
+    let tryButton pt =
+        match pt with
+        | 1, 3 -> Some Zero
+        | 0, 2 -> Some One
+        | 1, 2 -> Some Two
+        | 2, 2 -> Some Three
+        | 0, 1 -> Some Four
+        | 1, 1 -> Some Five
+        | 2, 1 -> Some Six
+        | 0, 0 -> Some Seven
+        | 1, 0 -> Some Eight
+        | 2, 0 -> Some Nine
+        | 2, 3 -> Some A
+        | _ -> None
+
     let moveTo =
         function
-        | Zero -> (1, 3)
-        | One -> (0, 2)
-        | Two -> (1, 2)
-        | Three -> (2, 2)
-        | Four -> (0, 1)
-        | Five -> (1, 1)
-        | Six -> (2, 1)
-        | Seven -> (0, 0)
-        | Eight -> (1, 0)
-        | Nine -> (2, 0)
-        | A -> (2, 3)
+        | Zero -> 1, 3
+        | One -> 0, 2
+        | Two -> 1, 2
+        | Three -> 2, 2
+        | Four -> 0, 1
+        | Five -> 1, 1
+        | Six -> 2, 1
+        | Seven -> 0, 0
+        | Eight -> 1, 0
+        | Nine -> 2, 0
+        | A -> 2, 3
         >> moveBetween valid
 
 module DPad =
@@ -111,13 +134,22 @@ module DPad =
         |> Set.ofSeq
         |> Set.remove (0, 0)
 
+    let tryButton pt =
+        match pt with
+        | 1, 0 -> Some U
+        | 1, 1 -> Some D
+        | 0, 1 -> Some L
+        | 2, 1 -> Some R
+        | 2, 0 -> Some A
+        | _ -> None
+
     let moveTo =
         function
-        | U -> (1, 0)
-        | D -> (1, 1)
-        | L -> (0, 1)
-        | R -> (2, 1)
-        | A -> (2, 0)
+        | U -> 1, 0
+        | D -> 1, 1
+        | L -> 0, 1
+        | R -> 2, 1
+        | A -> 2, 0
         >> moveBetween valid
 
 
@@ -188,7 +220,45 @@ let complexity code =
 
 let one: string seq -> int = parse >> List.map complexity >> List.sum
 
-let two lines = 0
+let two lines =
+    let parse line =
+        seq {
+            for c in line do
+                match c with
+                | '^' -> yield U
+                | 'v' -> yield D
+                | '<' -> yield L
+                | '>' -> yield R
+                | 'A' -> yield A
+                | _ -> ()
+        }
+
+    let execute start tryButton =
+        let fold (pt, out) =
+            function
+            | A -> pt, pt |> tryButton |> Option.map (fun b -> b :: out) |> Option.defaultValue out
+            | button -> (move button pt), out
+
+        Seq.fold fold (start, []) >> snd >> List.rev
+
+    lines
+    |> Seq.tryExactlyOne
+    |> Option.map (
+        parse
+        >> execute DPad.start DPad.tryButton
+        >> fun x ->
+            print x
+            x
+        >> execute DPad.start DPad.tryButton
+        >> fun x ->
+            print x
+            x
+        >> execute NumPad.start NumPad.tryButton
+        >> printfn "%A"
+    )
+    |> ignore
+
+    0
 
 // <v<A>>^AvA^A< vA<AA>>^AAvA<^A>A
 // <<vA^>>AvA^A< <vA^>>A<<vA>A>^AA<A>vA^
