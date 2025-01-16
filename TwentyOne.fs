@@ -32,44 +32,7 @@ let move d (x, y) =
 let neighbors pt =
     List.map (fun d -> d, move d pt) [ R; D; U; L ]
 
-let moveBetween' (valid: Pt Set) (finish: Pt) (start: Pt) : Pt * (Direction list) =
-    let neighbors = neighbors >> List.filter (fun (_, pt) -> Set.contains pt valid)
-
-    let rec loop shortest completed scores pq =
-        match PQ.tryPop pq with
-        | None -> List.map List.rev completed
-        | Some(_, (pt, _)) when pt = finish && (Map.find pt scores) > shortest -> completed
-        | Some(pq, (pt, path)) when pt = finish -> loop (Map.find pt scores) (path :: completed) scores pq
-        | Some(pq, (pt, path)) ->
-            let score = Map.find pt scores
-
-            let fold (pq, scores) (direction, neighbor) =
-                let score =
-                    path
-                    |> List.tryHead
-                    |> function
-                        | Some d when d = direction -> score + 1
-                        | _ -> score + 10
-
-                scores
-                |> Map.tryFind neighbor
-                |> function
-                    | Some prevScore when prevScore < score -> (pq, scores)
-                    | _ -> PQ.push score (neighbor, direction :: path) pq, Map.add neighbor score scores
-
-            let pq, scores = pt |> neighbors |> List.fold fold (pq, scores)
-            loop shortest completed scores pq
-
-    let shortestPaths =
-        loop maxInt [] (Map.add start 0 Map.empty) (PQ.push 0 (start, []) Map.empty)
-
-    // if List.length shortestPaths > 1 then
-    //     printfn "Shortest paths from %A to %A" start finish
-    //     List.iter print shortestPaths
-
-    (finish, List.head shortestPaths)
-
-let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * (Direction list) =
+let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction list list =
     let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
     let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
 
@@ -80,24 +43,11 @@ let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * (Di
 
         List.fold fold ((x', y'), []) >> snd >> Set.ofList
 
-    let isValid =
-        toPoints
-        // >> fun x ->
-        //     printfn "valid: %A" valid
-        //     printfn "pts: %A" x
-        //     x
-        >> Set.isSuperset valid
+    let isValid = toPoints >> Set.isSuperset valid
 
-    let paths =
-        List.distinct [ vertical @ horizontal; horizontal @ vertical ] |> List.rev
+    let paths = List.distinct [ vertical @ horizontal; horizontal @ vertical ]
 
-    // if List.length paths = 2 && List.forall isValid paths then
-    //     printfn "choice"
-    // List.iter print paths
-
-    let path = List.find isValid paths
-
-    (finish, path)
+    (finish, List.filter isValid paths)
 
 
 module NumPad =
@@ -205,22 +155,29 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
+let rec permute choices =
+    let map rest el =
+        let map rest' = el :: rest'
+        rest |> permute |> List.map map
+
+    match choices with
+    | head :: rest -> head |> List.map (map rest) |> List.concat
+    | [] -> [ [] ]
+
+
 let moves code =
     let expand move start =
         let fold (position, moves) key =
             let dest, moves' = move key position
-            dest, moves @ moves' @ [ A ]
+            dest, moves @ [moves'] @ [ [ [A] ] ]
 
-        List.fold fold (start, [])
-        >> snd
-        >> fun x ->
-            print x
-            x
+        List.fold fold (start, []) >> snd >> permute >> List.map List.concat
 
     code
     |> expand NumPad.moveTo NumPad.start
-    |> expand DPad.moveTo DPad.start
-    |> expand DPad.moveTo DPad.start
+    |> List.map (expand DPad.moveTo DPad.start) |> List.concat
+    |> List.map (expand DPad.moveTo DPad.start) |> List.concat
+    |> List.minBy List.length
 
 let numericPart =
     let fold (place, acc) =
@@ -249,6 +206,8 @@ let complexity code =
          l)
     * (numericPart code)
 
+
+// 255888 - too high
 let one: string seq -> int = parse >> List.map complexity >> List.sum
 
 let two lines =
@@ -288,6 +247,8 @@ let two lines =
         >> printfn "%A"
     )
     |> ignore
+
+    permute [ [ 1; 2 ]; [ 3 ]; [ 4; 5 ]; [ 6 ] ] |> printfn "%A"
 
     0
 
