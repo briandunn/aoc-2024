@@ -32,7 +32,7 @@ let move d (x, y) =
 let neighbors pt =
     List.map (fun d -> d, move d pt) [ R; D; U; L ]
 
-let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction list list =
+let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction list =
     let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
     let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
 
@@ -45,11 +45,17 @@ let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Dir
 
     let isValid = toPoints >> Set.isSuperset valid
 
-    // perhaps its the choice where that is the fewest moves from the last choice?
-    // and if tied the one closes to the next, and if both tied, who cares.
-    let paths = List.distinct [ vertical @ horizontal; horizontal @ vertical ]
+    let sortBy =
+        function
+        | L :: _ -> 0
+        | D :: _ -> 1
+        | U :: _ -> 2
+        | _ -> 3
 
-    (finish, List.filter isValid paths)
+    (finish,
+     [ vertical @ horizontal; horizontal @ vertical ]
+     |> List.sortBy sortBy
+     |> List.find isValid)
 
 
 module NumPad =
@@ -134,7 +140,36 @@ module DPad =
         | R -> 2, 1
         | A -> 2, 0
 
-    let moveTo = coords >> moveBetween valid
+    let moveTo (dest: Direction) (start: Pt) : Pt * Direction list =
+        let map start =
+            match start, dest with
+            | A, D -> [ L; D ]
+            | A, L -> [ D; L; L ]
+            | A, R -> [ D ]
+            | A, U -> [ L ]
+
+            | D, A -> [ U; R ]
+            | D, L -> [ L ]
+            | D, R -> [ R ]
+            | D, U -> [ U ]
+
+            | L, A -> [ R; R; U ]
+            | L, D -> [ R ]
+            | L, R -> [ R; R ]
+            | L, U -> [ R; U ]
+
+            | R, A -> [ U ]
+            | R, D -> [ L ]
+            | R, L -> [ L; L ]
+            | R, U -> [ L; U ]
+
+            | U, A -> [ R ]
+            | U, D -> [ D ]
+            | U, L -> [ D; L ]
+            | U, R -> [ D; R ]
+            | _ -> []
+
+        coords dest, (start |> tryButton |> Option.map map |> Option.defaultValue [])
 
 
 let parse: string seq -> NumPad.Key list list =
@@ -189,30 +224,24 @@ let distanceBetweenButtons =
     List.pairwise >> List.fold fold 0
 
 let moves (code: NumPad.Key list) =
-    let chooseBest =
-        permute
-        >> List.map List.concat
-        >> List.groupBy distanceBetweenButtons
-        >> Map.ofList
-        >> Map.minKeyValue
-        >> snd
+    printfn "%A" code
 
     let expand move start moves =
-        let fold ((position, moves): Pt * Direction list list) key =
+        let fold ((position, moves): Pt * Direction list) key =
             let dest, moves' = move key position
-            dest, (chooseBest ([ moves ] @ [ moves' ] @ [ [ [ A ] ] ]))
+            dest, moves @ moves' @ [ A ]
 
         moves |> List.fold fold (start, []) |> snd
     // gotta be a way to choose one as we go
 
-    let rec loop n (moves: Direction list list) =
-        // List.iter print moves
+    let rec loop n (moves: Direction list) =
+        print moves
+
         match n with
         | 0 -> moves
-        | n ->
-            loop (n - 1) (moves |> List.map (expand DPad.moveTo DPad.start) |> List.concat)
+        | n -> loop (n - 1) (expand DPad.moveTo DPad.start moves)
 
-    loop 3 (expand NumPad.moveTo NumPad.start code) |> List.minBy List.length
+    loop 2 (expand NumPad.moveTo NumPad.start code)
 
 let numericPart =
     let fold (place, acc) =
