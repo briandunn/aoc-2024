@@ -45,6 +45,8 @@ let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Dir
 
     let isValid = toPoints >> Set.isSuperset valid
 
+    // perhaps its the choice where that is the fewest moves from the last choice?
+    // and if tied the one closes to the next, and if both tied, who cares.
     let paths = List.distinct [ vertical @ horizontal; horizontal @ vertical ]
 
     (finish, List.filter isValid paths)
@@ -124,14 +126,15 @@ module DPad =
         | 2, 0 -> Some A
         | _ -> None
 
-    let moveTo =
+    let coords =
         function
         | U -> 1, 0
         | D -> 1, 1
         | L -> 0, 1
         | R -> 2, 1
         | A -> 2, 0
-        >> moveBetween valid
+
+    let moveTo = coords >> moveBetween valid
 
 
 let parse: string seq -> NumPad.Key list list =
@@ -167,14 +170,24 @@ let rec permute' choices =
 let permute (choices: 'a list list) : 'a list list =
     let rec loop acc choices =
         let map head =
-            let map tail = head::tail
+            let map tail = head :: tail
             List.map map acc
 
         match choices with
         | head :: rest when acc = [] -> loop (List.map List.singleton head) rest
         | head :: rest -> loop (head |> List.map map |> List.concat) rest
         | [] -> List.map List.rev acc
+
     loop [] choices
+
+let distanceBetweenButtons =
+    let dist (x, y) (x', y') = (abs (y - y')) + (abs (x - x'))
+
+    let fold acc (a, b) =
+        acc + (dist (DPad.coords a) (DPad.coords b))
+
+    List.pairwise >> List.fold fold 0
+
 
 
 let moves code =
@@ -183,19 +196,22 @@ let moves code =
             let dest, moves' = move key position
             dest, moves @ [ moves' ] @ [ [ [ A ] ] ]
 
-        moves |> List.fold fold (start, []) |> snd |> permute |> List.map List.concat
+        moves
+        |> List.fold fold (start, [])
+        |> snd
+        // gotta be a way to choose one as we go
+        |> permute
+        |> List.map List.concat
+        |> List.minBy distanceBetweenButtons
 
     let rec loop n moves =
         match n with
         | 0 -> moves
         | n ->
-            let length, moves =
-                moves |> List.groupBy List.length |> Map.ofList |> Map.minKeyValue
+            print moves
+            loop (n - 1) (expand DPad.moveTo DPad.start moves)
 
-            printfn "l:%d\tc:%d" length (List.length moves)
-            loop (n - 1) (moves |> List.map (expand DPad.moveTo DPad.start) |> List.concat)
-
-    code |> expand NumPad.moveTo NumPad.start |> loop 25 |> List.minBy List.length
+    code |> expand NumPad.moveTo NumPad.start |> loop 4
 
 let numericPart =
     let fold (place, acc) =
