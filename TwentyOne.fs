@@ -155,29 +155,43 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-let rec permute choices =
+let rec permute' choices =
     let map rest el =
         let map rest' = el :: rest'
-        rest |> permute |> List.map map
+        rest |> permute' |> List.map map
 
     match choices with
     | head :: rest -> head |> List.map (map rest) |> List.concat
     | [] -> [ [] ]
 
+let permute (choices: 'a list list) : 'a list list =
+    let rec loop acc choices =
+        let map head =
+            let map tail = head::tail
+            List.map map acc
+
+        match choices with
+        | head :: rest when acc = [] -> loop (List.map List.singleton head) rest
+        | head :: rest -> loop (head |> List.map map |> List.concat) rest
+        | [] -> List.map List.rev acc
+    loop [] choices
+
 
 let moves code =
-    let expand move start =
+    let expand move start moves =
         let fold (position, moves) key =
             let dest, moves' = move key position
             dest, moves @ [ moves' ] @ [ [ [ A ] ] ]
 
-        List.fold fold (start, []) >> snd >> permute >> List.map List.concat
+        moves |> List.fold fold (start, []) |> snd |> permute |> List.map List.concat
 
     let rec loop n moves =
         match n with
         | 0 -> moves
         | n ->
-            let length, moves = moves |> List.groupBy List.length |> Map.ofList |> Map.minKeyValue
+            let length, moves =
+                moves |> List.groupBy List.length |> Map.ofList |> Map.minKeyValue
+
             printfn "l:%d\tc:%d" length (List.length moves)
             loop (n - 1) (moves |> List.map (expand DPad.moveTo DPad.start) |> List.concat)
 
