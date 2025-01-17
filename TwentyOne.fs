@@ -169,15 +169,19 @@ let moves code =
     let expand move start =
         let fold (position, moves) key =
             let dest, moves' = move key position
-            dest, moves @ [moves'] @ [ [ [A] ] ]
+            dest, moves @ [ moves' ] @ [ [ [ A ] ] ]
 
         List.fold fold (start, []) >> snd >> permute >> List.map List.concat
 
-    code
-    |> expand NumPad.moveTo NumPad.start
-    |> List.map (expand DPad.moveTo DPad.start) |> List.concat
-    |> List.map (expand DPad.moveTo DPad.start) |> List.concat
-    |> List.minBy List.length
+    let rec loop n moves =
+        match n with
+        | 0 -> moves
+        | n ->
+            let length, moves = moves |> List.groupBy List.length |> Map.ofList |> Map.minKeyValue
+            printfn "l:%d\tc:%d" length (List.length moves)
+            loop (n - 1) (moves |> List.map (expand DPad.moveTo DPad.start) |> List.concat)
+
+    code |> expand NumPad.moveTo NumPad.start |> loop 25 |> List.minBy List.length
 
 let numericPart =
     let fold (place, acc) =
@@ -251,6 +255,3 @@ let two lines =
     permute [ [ 1; 2 ]; [ 3 ]; [ 4; 5 ]; [ 6 ] ] |> printfn "%A"
 
     0
-
-// <v<A>>^AvA^A< vA<AA>>^AAvA<^A>A
-// <<vA^>>AvA^A< <vA^>>A<<vA>A>^AA<A>vA^
