@@ -188,30 +188,31 @@ let distanceBetweenButtons =
 
     List.pairwise >> List.fold fold 0
 
+let moves (code: NumPad.Key list) =
+    let chooseBest =
+        permute
+        >> List.map List.concat
+        >> List.groupBy distanceBetweenButtons
+        >> Map.ofList
+        >> Map.minKeyValue
+        >> snd
 
-
-let moves code =
     let expand move start moves =
-        let fold (position, moves) key =
+        let fold ((position, moves): Pt * Direction list list) key =
             let dest, moves' = move key position
-            dest, moves @ [ moves' ] @ [ [ [ A ] ] ]
+            dest, (chooseBest ([ moves ] @ [ moves' ] @ [ [ [ A ] ] ]))
 
-        moves
-        |> List.fold fold (start, [])
-        |> snd
-        // gotta be a way to choose one as we go
-        |> permute
-        |> List.map List.concat
-        |> List.minBy distanceBetweenButtons
+        moves |> List.fold fold (start, []) |> snd
+    // gotta be a way to choose one as we go
 
-    let rec loop n moves =
+    let rec loop n (moves: Direction list list) =
+        // List.iter print moves
         match n with
         | 0 -> moves
         | n ->
-            print moves
-            loop (n - 1) (expand DPad.moveTo DPad.start moves)
+            loop (n - 1) (moves |> List.map (expand DPad.moveTo DPad.start) |> List.concat)
 
-    code |> expand NumPad.moveTo NumPad.start |> loop 4
+    loop 3 (expand NumPad.moveTo NumPad.start code) |> List.minBy List.length
 
 let numericPart =
     let fold (place, acc) =
