@@ -11,15 +11,16 @@ type Direction =
     | R
     | A
 
-let print =
-    List.map (function
+let print moves =
+    moves
+    |> Seq.map (function
         | U -> "^"
         | D -> "v"
         | L -> "<"
         | R -> ">"
         | A -> "A")
-    >> String.concat ""
-    >> printfn "%s"
+    |> String.concat ""
+    |> printfn "%s"
 
 let move d (x, y) =
     match d with
@@ -115,7 +116,7 @@ module NumPad =
         | A -> 2, 3
         >> moveBetween valid
 
-    let expand =
+    let expand: Key seq -> Direction seq =
         let fold (position, moves) key =
             let dest, moves' = moveTo key position
             dest, (List.ofSeq moves') :: moves
@@ -123,64 +124,35 @@ module NumPad =
         Seq.fold fold (start, []) >> snd >> intersperse [ Direction.A ] >> Seq.concat
 
 module DPad =
-    let start = 2, 0
+    let start = A
 
-    let valid =
-        seq {
-            for x in 0..2 do
-                for y in 0..1 -> x, y
-        }
-        |> Set.ofSeq
-        |> Set.remove (0, 0)
+    let moveTo (dest: Direction) (start: Direction) : Direction seq =
+        match start, dest with
+        | A, D -> [ L; D ]
+        | A, L -> [ D; L; L ]
+        | A, R -> [ D ]
+        | A, U -> [ L ]
 
-    let tryButton pt =
-        match pt with
-        | 1, 0 -> Some U
-        | 1, 1 -> Some D
-        | 0, 1 -> Some L
-        | 2, 1 -> Some R
-        | 2, 0 -> Some A
-        | _ -> None
+        | D, A -> [ U; R ]
+        | D, L -> [ L ]
+        | D, R -> [ R ]
+        | D, U -> [ U ]
 
-    let coords =
-        function
-        | U -> 1, 0
-        | D -> 1, 1
-        | L -> 0, 1
-        | R -> 2, 1
-        | A -> 2, 0
+        | L, A -> [ R; R; U ]
+        | L, D -> [ R ]
+        | L, R -> [ R; R ]
+        | L, U -> [ R; U ]
 
-    let moveTo (dest: Direction) (start: Pt) : Pt * Direction seq =
-        let map start =
-            match start, dest with
-            | A, D -> [ L; D ]
-            | A, L -> [ D; L; L ]
-            | A, R -> [ D ]
-            | A, U -> [ L ]
+        | R, A -> [ U ]
+        | R, D -> [ L ]
+        | R, L -> [ L; L ]
+        | R, U -> [ L; U ]
 
-            | D, A -> [ U; R ]
-            | D, L -> [ L ]
-            | D, R -> [ R ]
-            | D, U -> [ U ]
-
-            | L, A -> [ R; R; U ]
-            | L, D -> [ R ]
-            | L, R -> [ R; R ]
-            | L, U -> [ R; U ]
-
-            | R, A -> [ U ]
-            | R, D -> [ L ]
-            | R, L -> [ L; L ]
-            | R, U -> [ L; U ]
-
-            | U, A -> [ R ]
-            | U, D -> [ D ]
-            | U, L -> [ D; L ]
-            | U, R -> [ D; R ]
-            | _ -> []
-            |> Seq.ofList
-
-        coords dest, (start |> tryButton |> Option.map map |> Option.defaultValue Seq.empty)
+        | U, A -> [ R ]
+        | U, D -> [ D ]
+        | U, L -> [ D; L ]
+        | U, R -> [ D; R ]
+        | _ -> []
 
 let parse: string seq -> NumPad.Key list list =
     let map line =
@@ -203,26 +175,72 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-type Code = Map<Direction list, int list>
+// would only contain 16 keys. each generation roughly doubles, wer're at 146689854 for 7 so 18B for 1...
+// pair -> level -> seq
+type Cache = Map<Direction * Direction, Map<int, Direction seq>>
+// what if we unroll each of the 16 25 times?
+module Cache =
+    let update
+        ((src, dest) as pair: Direction * Direction)
+        (level: int)
+        (fn: Direction -> Direction -> Direction seq)
+        (cache: Cache)
+        : Cache * Direction seq =
 
-let moves (code: NumPad.Key seq) =
+        let add m =
+            let value = fn src dest
+            (Map.add pair (Map.add level value m) cache, value)
+
+        match Map.tryFind pair cache with
+        | None -> add Map.empty
+        | Some cache' ->
+            match Map.tryFind level cache' with
+            | Some hit -> (cache, hit)
+            | None -> add cache'
+
+// let moves' dpadCount (code: NumPad.Key seq) =
+//     printfn "%A" code
+
+//     let expand (code: Direction seq) : Direction seq =
+//         let fold (position, moves) key =
+//             let dest, moves' = DPad.moveTo key position
+//             dest, (List.ofSeq moves') :: moves
+
+//         code |> Seq.fold fold (DPad.start, []) |> snd |> intersperse [ A ] |> Seq.concat
+
+//     let rec loop cache n (moves: Direction seq) =
+//         printfn "n: %d\tlength: %d" n (Seq.length moves)
+
+//         match n with
+//         | n when n = dpadCount -> moves
+//         | n -> loop cache (n + 1) (expand moves)
+
+//     loop Map.empty 0 (NumPad.expand code) |> Seq.length
+
+let moves dpadCount (code: NumPad.Key seq) =
     printfn "%A" code
 
-    let expand =
-        let fold (position, moves) key =
-            let dest, moves' = DPad.moveTo key position
-            dest, (List.ofSeq moves') :: moves
+    let fold n (start, cache, moves) dest =
+        print moves
 
-        Seq.fold fold (DPad.start, []) >> snd >> intersperse [ A ] >> Seq.concat
+        let cache, moves' = cache |> Cache.update (start,dest) n DPad.moveTo
 
-    let rec loop n (moves: Direction seq) =
-        printfn "n: %d\tlength: %d" n (Seq.length moves)
+        dest, cache, Seq.concat [ moves; moves' ]
 
-        match n with
-        | 0 -> moves
-        | n -> loop (n - 1) (expand moves)
+    let rec loop n (start, cache, moves) =
+        if n = dpadCount then
+            Seq.length moves
+        else
+            loop (n + 1) (fold n (start, cache, Seq.empty) dest)
 
-    loop 25 (NumPad.expand code)
+
+    code
+    |> NumPad.expand
+    |> Seq.fold (fold 0) (DPad.start, Map.empty, Seq.empty)
+    |> loop 1
+    |> fun x ->
+        printfn "length: %d" x
+        x
 
 let numericPart =
     let fold (place, acc) =
@@ -242,55 +260,50 @@ let numericPart =
 
     List.rev >> List.fold fold (0, 0) >> snd
 
-let complexity code =
-    (code
-     |> moves
-     |> Seq.length
-     |> fun l ->
-         printfn "length:%d" l
-         l)
-    * (numericPart code)
+let complexity dpadCount code =
+    (moves dpadCount code) * (numericPart code)
 
+let one: string seq -> int =
+    parse >> List.take 1 >> List.map (complexity 2) >> List.sum
 
-// 255888 - too high
-let one: string seq -> int = parse >> List.map complexity >> List.sum
+let two: string seq -> int = parse >> List.map (complexity 25) >> List.sum
 
-let two lines =
-    let parse line =
-        seq {
-            for c in line do
-                match c with
-                | '^' -> yield U
-                | 'v' -> yield D
-                | '<' -> yield L
-                | '>' -> yield R
-                | 'A' -> yield A
-                | _ -> ()
-        }
+// let two' lines =
+//     let parse line =
+//         seq {
+//             for c in line do
+//                 match c with
+//                 | '^' -> yield U
+//                 | 'v' -> yield D
+//                 | '<' -> yield L
+//                 | '>' -> yield R
+//                 | 'A' -> yield A
+//                 | _ -> ()
+//         }
 
-    let execute start tryButton =
-        let fold (pt, out) =
-            function
-            | A -> pt, pt |> tryButton |> Option.map (fun b -> b :: out) |> Option.defaultValue out
-            | button -> (move button pt), out
+//     let execute start tryButton =
+//         let fold (pt, out) =
+//             function
+//             | A -> pt, pt |> tryButton |> Option.map (fun b -> b :: out) |> Option.defaultValue out
+//             | button -> (move button pt), out
 
-        Seq.fold fold (start, []) >> snd >> List.rev
+//         Seq.fold fold (start, []) >> snd >> List.rev
 
-    lines
-    |> Seq.tryExactlyOne
-    |> Option.map (
-        parse
-        >> execute DPad.start DPad.tryButton
-        >> fun x ->
-            print x
-            x
-        >> execute DPad.start DPad.tryButton
-        >> fun x ->
-            print x
-            x
-        >> execute NumPad.start NumPad.tryButton
-        >> printfn "%A"
-    )
-    |> ignore
+//     lines
+//     |> Seq.tryExactlyOne
+//     |> Option.map (
+//         parse
+//         >> execute DPad.start DPad.tryButton
+//         >> fun x ->
+//             print x
+//             x
+//         >> execute DPad.start DPad.tryButton
+//         >> fun x ->
+//             print x
+//             x
+//         >> execute NumPad.start NumPad.tryButton
+//         >> printfn "%A"
+//     )
+//     |> ignore
 
-    0
+//     0
