@@ -171,7 +171,6 @@ module DPad =
 
         coords dest, (start |> tryButton |> Option.map map |> Option.defaultValue [])
 
-
 let parse: string seq -> NumPad.Key list list =
     let map line =
         seq {
@@ -193,55 +192,23 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-let rec permute' choices =
-    let map rest el =
-        let map rest' = el :: rest'
-        rest |> permute' |> List.map map
-
-    match choices with
-    | head :: rest -> head |> List.map (map rest) |> List.concat
-    | [] -> [ [] ]
-
-let permute (choices: 'a list list) : 'a list list =
-    let rec loop acc choices =
-        let map head =
-            let map tail = head :: tail
-            List.map map acc
-
-        match choices with
-        | head :: rest when acc = [] -> loop (List.map List.singleton head) rest
-        | head :: rest -> loop (head |> List.map map |> List.concat) rest
-        | [] -> List.map List.rev acc
-
-    loop [] choices
-
-let distanceBetweenButtons =
-    let dist (x, y) (x', y') = (abs (y - y')) + (abs (x - x'))
-
-    let fold acc (a, b) =
-        acc + (dist (DPad.coords a) (DPad.coords b))
-
-    List.pairwise >> List.fold fold 0
-
 let moves (code: NumPad.Key list) =
     printfn "%A" code
 
-    let expand move start moves =
+    let expand move start =
         let fold ((position, moves): Pt * Direction list) key =
             let dest, moves' = move key position
             dest, moves @ moves' @ [ A ]
 
-        moves |> List.fold fold (start, []) |> snd
-    // gotta be a way to choose one as we go
+        List.fold fold (start, []) >> snd
 
     let rec loop n (moves: Direction list) =
-        print moves
-
+        printfn "n: %d\tlength: %d" n (List.length moves)
         match n with
         | 0 -> moves
         | n -> loop (n - 1) (expand DPad.moveTo DPad.start moves)
 
-    loop 2 (expand NumPad.moveTo NumPad.start code)
+    loop 25 (expand NumPad.moveTo NumPad.start code)
 
 let numericPart =
     let fold (place, acc) =
@@ -311,7 +278,5 @@ let two lines =
         >> printfn "%A"
     )
     |> ignore
-
-    permute [ [ 1; 2 ]; [ 3 ]; [ 4; 5 ]; [ 6 ] ] |> printfn "%A"
 
     0
