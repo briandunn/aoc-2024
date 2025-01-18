@@ -32,32 +32,8 @@ let move d (x, y) =
 let neighbors pt =
     List.map (fun d -> d, move d pt) [ R; D; U; L ]
 
-let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction seq =
-    let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
-    let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
-
-    let toPoints =
-        let fold (pt, points) d =
-            let pt = move d pt
-            pt, pt :: points
-
-        List.fold fold ((x', y'), []) >> snd >> Set.ofList
-
-    let isValid = toPoints >> Set.isSuperset valid
-
-    let sortBy =
-        function
-        | L :: _ -> 0
-        | D :: _ -> 1
-        | U :: _ -> 2
-        | _ -> 3
-
-    (finish,
-     [ vertical @ horizontal; horizontal @ vertical ]
-     |> List.sortBy sortBy
-     |> List.find isValid
-     |> Seq.ofList)
-
+let intersperse sep =
+    Seq.fold (fun acc x -> x :: sep :: acc) [] >> Seq.ofList
 
 module NumPad =
     type Key =
@@ -74,6 +50,32 @@ module NumPad =
         | A
 
     let start = 2, 3
+
+    let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction seq =
+        let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
+        let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
+
+        let toPoints =
+            let fold (pt, points) d =
+                let pt = move d pt
+                pt, pt :: points
+
+            List.fold fold ((x', y'), []) >> snd >> Set.ofList
+
+        let isValid = toPoints >> Set.isSuperset valid
+
+        let sortBy =
+            function
+            | L :: _ -> 0
+            | D :: _ -> 1
+            | U :: _ -> 2
+            | _ -> 3
+
+        (finish,
+         [ vertical @ horizontal; horizontal @ vertical ]
+         |> List.sortBy sortBy
+         |> List.find isValid
+         |> Seq.ofList)
 
     let valid =
         seq {
@@ -112,6 +114,13 @@ module NumPad =
         | Nine -> 2, 0
         | A -> 2, 3
         >> moveBetween valid
+
+    let expand =
+        let fold (position, moves) key =
+            let dest, moves' = moveTo key position
+            dest, (List.ofSeq moves') :: moves
+
+        Seq.fold fold (start, []) >> snd >> intersperse [ Direction.A ] >> Seq.concat
 
 module DPad =
     let start = 2, 0
@@ -194,26 +203,26 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-let intersperse sep = Seq.fold (fun acc x -> x::sep::acc) [] >> Seq.ofList
+type Code = Map<Direction list, int list>
 
 let moves (code: NumPad.Key seq) =
     printfn "%A" code
 
-    let expand move start =
+    let expand =
         let fold (position, moves) key =
-            let dest, moves' = move key position
-            dest, (List.ofSeq moves')::moves
+            let dest, moves' = DPad.moveTo key position
+            dest, (List.ofSeq moves') :: moves
 
-        Seq.fold fold (start, []) >> snd >> intersperse [A] >> Seq.concat
+        Seq.fold fold (DPad.start, []) >> snd >> intersperse [ A ] >> Seq.concat
 
     let rec loop n (moves: Direction seq) =
         printfn "n: %d\tlength: %d" n (Seq.length moves)
 
         match n with
         | 0 -> moves
-        | n -> loop (n - 1) (expand DPad.moveTo DPad.start moves)
+        | n -> loop (n - 1) (expand moves)
 
-    loop 25 (expand NumPad.moveTo NumPad.start code)
+    loop 25 (NumPad.expand code)
 
 let numericPart =
     let fold (place, acc) =
