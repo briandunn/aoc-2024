@@ -194,15 +194,17 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
+let intersperse sep = Seq.fold (fun acc x -> x::sep::acc) [] >> Seq.ofList
+
 let moves (code: NumPad.Key seq) =
     printfn "%A" code
 
     let expand move start =
-        let fold ((position, moves): Pt * Direction seq) key =
+        let fold (position, moves) key =
             let dest, moves' = move key position
-            dest, Seq.concat [ moves; moves'; [ A ] ]
+            dest, (List.ofSeq moves')::moves
 
-        Seq.fold fold (start, []) >> snd
+        Seq.fold fold (start, []) >> snd >> intersperse [A] >> Seq.concat
 
     let rec loop n (moves: Direction seq) =
         printfn "n: %d\tlength: %d" n (Seq.length moves)
@@ -211,7 +213,7 @@ let moves (code: NumPad.Key seq) =
         | 0 -> moves
         | n -> loop (n - 1) (expand DPad.moveTo DPad.start moves)
 
-    loop 2 (expand NumPad.moveTo NumPad.start code)
+    loop 25 (expand NumPad.moveTo NumPad.start code)
 
 let numericPart =
     let fold (place, acc) =
