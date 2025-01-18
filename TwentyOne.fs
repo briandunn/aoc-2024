@@ -32,7 +32,7 @@ let move d (x, y) =
 let neighbors pt =
     List.map (fun d -> d, move d pt) [ R; D; U; L ]
 
-let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction list =
+let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Direction seq =
     let vertical = List.replicate (abs (y - y')) (if y < y' then U else D)
     let horizontal = List.replicate (abs (x - x')) (if x < x' then L else R)
 
@@ -55,7 +55,8 @@ let moveBetween (valid: Pt Set) ((x, y): Pt as finish) ((x', y'): Pt) : Pt * Dir
     (finish,
      [ vertical @ horizontal; horizontal @ vertical ]
      |> List.sortBy sortBy
-     |> List.find isValid)
+     |> List.find isValid
+     |> Seq.ofList)
 
 
 module NumPad =
@@ -140,7 +141,7 @@ module DPad =
         | R -> 2, 1
         | A -> 2, 0
 
-    let moveTo (dest: Direction) (start: Pt) : Pt * Direction list =
+    let moveTo (dest: Direction) (start: Pt) : Pt * Direction seq =
         let map start =
             match start, dest with
             | A, D -> [ L; D ]
@@ -168,8 +169,9 @@ module DPad =
             | U, L -> [ D; L ]
             | U, R -> [ D; R ]
             | _ -> []
+            |> Seq.ofList
 
-        coords dest, (start |> tryButton |> Option.map map |> Option.defaultValue [])
+        coords dest, (start |> tryButton |> Option.map map |> Option.defaultValue Seq.empty)
 
 let parse: string seq -> NumPad.Key list list =
     let map line =
@@ -192,23 +194,24 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-let moves (code: NumPad.Key list) =
+let moves (code: NumPad.Key seq) =
     printfn "%A" code
 
     let expand move start =
-        let fold ((position, moves): Pt * Direction list) key =
+        let fold ((position, moves): Pt * Direction seq) key =
             let dest, moves' = move key position
-            dest, moves @ moves' @ [ A ]
+            dest, Seq.concat [ moves; moves'; [ A ] ]
 
-        List.fold fold (start, []) >> snd
+        Seq.fold fold (start, []) >> snd
 
-    let rec loop n (moves: Direction list) =
-        printfn "n: %d\tlength: %d" n (List.length moves)
+    let rec loop n (moves: Direction seq) =
+        printfn "n: %d\tlength: %d" n (Seq.length moves)
+
         match n with
         | 0 -> moves
         | n -> loop (n - 1) (expand DPad.moveTo DPad.start moves)
 
-    loop 25 (expand NumPad.moveTo NumPad.start code)
+    loop 2 (expand NumPad.moveTo NumPad.start code)
 
 let numericPart =
     let fold (place, acc) =
@@ -231,7 +234,7 @@ let numericPart =
 let complexity code =
     (code
      |> moves
-     |> List.length
+     |> Seq.length
      |> fun l ->
          printfn "length:%d" l
          l)
