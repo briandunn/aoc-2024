@@ -126,7 +126,7 @@ module NumPad =
 module DPad =
     let start = A
 
-    let moveTo (dest: Direction) (start: Direction) : Direction seq =
+    let moveTo (start: Direction) (dest: Direction) : Direction seq =
         match start, dest with
         | A, D -> [ L; D ]
         | A, L -> [ D; L; L ]
@@ -181,8 +181,8 @@ type Cache = Map<Direction * Direction, Map<int, Direction seq>>
 // what if we unroll each of the 16 25 times?
 module Cache =
     let update
-        ((src, dest) as pair: Direction * Direction)
         (level: int)
+        ((src, dest) as pair: Direction * Direction)
         (fn: Direction -> Direction -> Direction seq)
         (cache: Cache)
         : Cache * Direction seq =
@@ -195,52 +195,48 @@ module Cache =
         | None -> add Map.empty
         | Some cache' ->
             match Map.tryFind level cache' with
-            | Some hit -> (cache, hit)
+            | Some hit ->
+                printfn "hit!"
+                (cache, hit)
             | None -> add cache'
 
-// let moves' dpadCount (code: NumPad.Key seq) =
-//     printfn "%A" code
+let findCodePaths cache update =
+    let fold (((cache, moves) as acc): Cache * Direction seq) =
+        printfn "%A" (Seq.length moves)
+        function
+        | [| a; b |] ->
+            let cache, moves' = update (a, b) DPad.moveTo cache
+            cache, Seq.concat [ moves; moves'; [ A ] ]
+        | _ -> acc
 
-//     let expand (code: Direction seq) : Direction seq =
-//         let fold (position, moves) key =
-//             let dest, moves' = DPad.moveTo key position
-//             dest, (List.ofSeq moves') :: moves
+    Seq.windowed 2 >> Seq.fold fold (cache, Seq.empty)
 
-//         code |> Seq.fold fold (DPad.start, []) |> snd |> intersperse [ A ] |> Seq.concat
-
-//     let rec loop cache n (moves: Direction seq) =
-//         printfn "n: %d\tlength: %d" n (Seq.length moves)
-
-//         match n with
-//         | n when n = dpadCount -> moves
-//         | n -> loop cache (n + 1) (expand moves)
-
-//     loop Map.empty 0 (NumPad.expand code) |> Seq.length
-
-let moves dpadCount (code: NumPad.Key seq) =
+(*
+https://github.com/tmo1/adventofcode/blob/main/2024/21b.py#L27C1-L38C13
+def next_robot(new_sequence, level):
+    if (new_sequence, level) in known_sequences: return known_sequences[(new_sequence, level)]
+    if level == 26:
+    #for part 1, just change '26' to '3'
+        n = len(new_sequence)
+    else:
+        n = 0
+        for i, c in enumerate(new_sequence):
+            presses = keypad_dirs[('A' if i == 0 else new_sequence[i - 1], c)]
+            n += min(next_robot(presses[0] + presses[1] + 'A', level + 1), next_robot(presses[1] + presses[0] + 'A', level + 1)) if isinstance(presses, list) else next_robot(presses + 'A', level + 1)
+    known_sequences[(new_sequence, level)] = n
+    return n
+*)
+let moves dpadCount code =
     printfn "%A" code
 
-    let fold n (start, cache, moves) dest =
-        print moves
+    let fold (cache, code) n =
+        code |> Seq.append [ A ] |> findCodePaths cache (Cache.update n)
 
-        let cache, moves' = cache |> Cache.update (start,dest) n DPad.moveTo
+    seq { 1..dpadCount }
+    |> Seq.fold fold (Map.empty, NumPad.expand code)
+    |> snd
+    |> Seq.length
 
-        dest, cache, Seq.concat [ moves; moves' ]
-
-    let rec loop n (start, cache, moves) =
-        if n = dpadCount then
-            Seq.length moves
-        else
-            loop (n + 1) (fold n (start, cache, Seq.empty) dest)
-
-
-    code
-    |> NumPad.expand
-    |> Seq.fold (fold 0) (DPad.start, Map.empty, Seq.empty)
-    |> loop 1
-    |> fun x ->
-        printfn "length: %d" x
-        x
 
 let numericPart =
     let fold (place, acc) =
@@ -263,8 +259,7 @@ let numericPart =
 let complexity dpadCount code =
     (moves dpadCount code) * (numericPart code)
 
-let one: string seq -> int =
-    parse >> List.take 1 >> List.map (complexity 2) >> List.sum
+let one: string seq -> int = parse >> List.map (complexity 2) >> List.sum
 
 let two: string seq -> int = parse >> List.map (complexity 25) >> List.sum
 
