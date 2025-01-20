@@ -158,22 +158,26 @@ let parse: string seq -> NumPad.Key list list =
     Seq.map (map >> Seq.toList) >> Seq.toList
 
 // stole from https://github.com/tmo1/adventofcode/blob/main/2024/21b.py#L27C1-L38C13
+
+
 let rec nextRobot cache sequence level =
     let toAcc cache len =
         Map.add (sequence, level) len cache, len
+
+    let window f acc =
+        function
+        | [| a; b |] -> f acc a b
+        | _ -> acc
 
     match Map.tryFind (sequence, level) cache with
     | Some len -> cache, len
     | None when level = 0 -> sequence |> Seq.length |> int64 |> toAcc cache
     | None ->
-        let fold ((cache, len) as acc) =
-            function
-            | [| a; b |] ->
-                let cache, len' = nextRobot cache (DPad.moveTo a b @ [ A ]) (level - 1)
-                toAcc cache (len + len')
-            | _ -> acc
+        let fold (cache, len) a b =
+            let cache, len' = nextRobot cache (DPad.moveTo a b @ [ A ]) (level - 1)
+            toAcc cache (len + len')
 
-        sequence |> Seq.append [ A ] |> Seq.windowed 2 |> Seq.fold fold (cache, 0L)
+        (A::sequence) |> Seq.windowed 2 |> Seq.fold (window fold) (cache, 0L)
 
 let moves dpadCount code =
     dpadCount
