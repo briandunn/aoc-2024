@@ -1,7 +1,6 @@
 module TwentyOne
 
 type Pt = int * int
-
 let maxInt = System.Int32.MaxValue
 
 type Direction =
@@ -86,21 +85,6 @@ module NumPad =
         |> Set.ofSeq
         |> Set.remove (0, 3)
 
-    let tryButton pt =
-        match pt with
-        | 1, 3 -> Some Zero
-        | 0, 2 -> Some One
-        | 1, 2 -> Some Two
-        | 2, 2 -> Some Three
-        | 0, 1 -> Some Four
-        | 1, 1 -> Some Five
-        | 2, 1 -> Some Six
-        | 0, 0 -> Some Seven
-        | 1, 0 -> Some Eight
-        | 2, 0 -> Some Nine
-        | 2, 3 -> Some A
-        | _ -> None
-
     let moveTo =
         function
         | Zero -> 1, 3
@@ -124,8 +108,6 @@ module NumPad =
         Seq.fold fold (start, []) >> snd >> intersperse [ Direction.A ] >> Seq.concat
 
 module DPad =
-    let start = A
-
     let moveTo start dest =
         match start, dest with
         | A, D -> [ L; D ]
@@ -175,77 +157,28 @@ let parse: string seq -> NumPad.Key list list =
 
     Seq.map (map >> Seq.toList) >> Seq.toList
 
-// would only contain 16 keys. each generation roughly doubles, wer're at 146689854 for 7 so 18B for 1...
-// pair -> level -> seq
-type Cache = Map<Direction * Direction, Map<int, Direction seq>>
-// what if we unroll each of the 16 25 times?
-module Cache =
-    let update
-        (level: int)
-        ((src, dest) as pair: Direction * Direction)
-        (fn: Direction -> Direction -> Direction seq)
-        (cache: Cache)
-        : Cache * Direction seq =
-
-        let add m =
-            let value = fn src dest
-            (Map.add pair (Map.add level value m) cache, value)
-
-        match Map.tryFind pair cache with
-        | None -> add Map.empty
-        | Some cache' ->
-            match Map.tryFind level cache' with
-            | Some hit ->
-                printfn "hit!"
-                (cache, hit)
-            | None -> add cache'
-
-let findCodePaths cache update =
-    let fold (((cache, moves) as acc): Cache * Direction seq) =
-        printfn "%A" (Seq.length moves)
-
-        function
-        | [| a; b |] ->
-            let cache, moves' = update (a, b) DPad.moveTo cache
-            cache, Seq.concat [ moves; moves'; [ A ] ]
-        | _ -> acc
-
-    Seq.windowed 2 >> Seq.fold fold (cache, Seq.empty)
-
-(*
-https://github.com/tmo1/adventofcode/blob/main/2024/21b.py#L27C1-L38C13
-def next_robot(new_sequence, level):
-    if (new_sequence, level) in known_sequences: return known_sequences[(new_sequence, level)]
-    if level == 26:
-    #for part 1, just change '26' to '3'
-        n = len(new_sequence)
-    else:
-        n = 0
-        for i, c in enumerate(new_sequence):
-            presses = keypad_dirs[('A' if i == 0 else new_sequence[i - 1], c)]
-            n += min(next_robot(presses[0] + presses[1] + 'A', level + 1), next_robot(presses[1] + presses[0] + 'A', level + 1)) if isinstance(presses, list) else next_robot(presses + 'A', level + 1)
-    known_sequences[(new_sequence, level)] = n
-    return n
-*)
-
+// stole from https://github.com/tmo1/adventofcode/blob/main/2024/21b.py#L27C1-L38C13
 let rec nextRobot cache sequence level =
-    printf "%d\t" level
+    let toAcc cache len =
+        Map.add (sequence, level) len cache, len
+
     match Map.tryFind (sequence, level) cache with
-    | Some len -> len
-    | None when level = 0 -> Seq.length sequence
+    | Some len -> cache, len
+    | None when level = 0 -> sequence |> Seq.length |> int64 |> toAcc cache
     | None ->
-        let fold acc =
+        let fold ((cache, len) as acc) =
             function
-            | [| a; b |] -> acc + nextRobot cache (DPad.moveTo a b @ [ A ]) (level - 1)
+            | [| a; b |] ->
+                let cache, len' = nextRobot cache (DPad.moveTo a b @ [ A ]) (level - 1)
+                toAcc cache (len + len')
             | _ -> acc
 
-        sequence |> Seq.append [ A ] |> Seq.windowed 2 |> Seq.fold fold 0
-
-
+        sequence |> Seq.append [ A ] |> Seq.windowed 2 |> Seq.fold fold (cache, 0L)
 
 let moves dpadCount code =
-    nextRobot Map.empty (code |> NumPad.expand |> List.ofSeq) dpadCount
-
+    dpadCount
+    |> nextRobot Map.empty (code |> NumPad.expand |> List.ofSeq)
+    |> snd
 
 let numericPart =
     let fold (place, acc) =
@@ -266,48 +199,20 @@ let numericPart =
     List.rev >> List.fold fold (0, 0) >> snd
 
 let complexity dpadCount code =
-    (moves dpadCount code) * (numericPart code)
+    (moves dpadCount code) * (code |> numericPart |> int64)
 
-let one: string seq -> int = parse >> List.map (complexity 2) >> List.sum
+let one: string seq -> int =
+    parse
+    >> List.map (complexity 2)
+    >> List.sum
+    >> (fun x ->
+        printfn "%d" x
+        0)
 
-let two: string seq -> int = parse >> List.map (complexity 25) >> List.sum
-
-// let two' lines =
-//     let parse line =
-//         seq {
-//             for c in line do
-//                 match c with
-//                 | '^' -> yield U
-//                 | 'v' -> yield D
-//                 | '<' -> yield L
-//                 | '>' -> yield R
-//                 | 'A' -> yield A
-//                 | _ -> ()
-//         }
-
-//     let execute start tryButton =
-//         let fold (pt, out) =
-//             function
-//             | A -> pt, pt |> tryButton |> Option.map (fun b -> b :: out) |> Option.defaultValue out
-//             | button -> (move button pt), out
-
-//         Seq.fold fold (start, []) >> snd >> List.rev
-
-//     lines
-//     |> Seq.tryExactlyOne
-//     |> Option.map (
-//         parse
-//         >> execute DPad.start DPad.tryButton
-//         >> fun x ->
-//             print x
-//             x
-//         >> execute DPad.start DPad.tryButton
-//         >> fun x ->
-//             print x
-//             x
-//         >> execute NumPad.start NumPad.tryButton
-//         >> printfn "%A"
-//     )
-//     |> ignore
-
-//     0
+let two: string seq -> int =
+    parse
+    >> List.map (complexity 25)
+    >> List.sum
+    >> (fun x ->
+        printfn "%d" x
+        0)
