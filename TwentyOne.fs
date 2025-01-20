@@ -126,7 +126,7 @@ module NumPad =
 module DPad =
     let start = A
 
-    let moveTo (start: Direction) (dest: Direction) : Direction seq =
+    let moveTo start dest =
         match start, dest with
         | A, D -> [ L; D ]
         | A, L -> [ D; L; L ]
@@ -203,6 +203,7 @@ module Cache =
 let findCodePaths cache update =
     let fold (((cache, moves) as acc): Cache * Direction seq) =
         printfn "%A" (Seq.length moves)
+
         function
         | [| a; b |] ->
             let cache, moves' = update (a, b) DPad.moveTo cache
@@ -226,16 +227,24 @@ def next_robot(new_sequence, level):
     known_sequences[(new_sequence, level)] = n
     return n
 *)
+
+let rec nextRobot cache sequence level =
+    printf "%d\t" level
+    match Map.tryFind (sequence, level) cache with
+    | Some len -> len
+    | None when level = 0 -> Seq.length sequence
+    | None ->
+        let fold acc =
+            function
+            | [| a; b |] -> acc + nextRobot cache (DPad.moveTo a b @ [ A ]) (level - 1)
+            | _ -> acc
+
+        sequence |> Seq.append [ A ] |> Seq.windowed 2 |> Seq.fold fold 0
+
+
+
 let moves dpadCount code =
-    printfn "%A" code
-
-    let fold (cache, code) n =
-        code |> Seq.append [ A ] |> findCodePaths cache (Cache.update n)
-
-    seq { 1..dpadCount }
-    |> Seq.fold fold (Map.empty, NumPad.expand code)
-    |> snd
-    |> Seq.length
+    nextRobot Map.empty (code |> NumPad.expand |> List.ofSeq) dpadCount
 
 
 let numericPart =
