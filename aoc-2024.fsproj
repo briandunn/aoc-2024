@@ -31,6 +31,7 @@
     <Compile Include="TwentyOne.fs" />
     <Compile Include="TwentyTwo.fs" />
     <Compile Include="TwentyThree.fs" />
+    <Compile Include="TwentyFour.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
