@@ -46,10 +46,8 @@ let parse lines =
     { state = lines |> Seq.takeWhile ((<>) "") |> parseInitial
       gates = lines |> parseGates |> Seq.cache }
 
-let one lines =
-    let { state = state; gates = gates } = parse lines
-
-    let execute
+module Gate =
+    let run
         { inputs = (a, b)
           output = output
           op = op }
@@ -65,20 +63,22 @@ let one lines =
         |> Option.map (fun x -> Map.add output x state)
         |> Option.defaultValue state
 
-    let tick = Seq.foldBack execute gates
+module Device =
+    let run gates =
+        let tick = Seq.foldBack Gate.run gates
 
-    let rec run state =
-        let state' = tick state
-        if state = state' then state else run state'
+        let rec run state =
+            let state' = tick state
+            if state = state' then state else run state'
 
-    let toInt =
-        let setBit b n =
-          printfn "%d" b
-          n ||| (1L <<< b)
+        run
+
+    let toInt c =
+        let setBit b n = n ||| (1L <<< b)
 
         let fold acc (k, v) =
             k
-            |> String.split "z"
+            |> String.split c
             |> Seq.toList
             |> function
                 | [ ""; i ] when v = 1 -> setBit (int i) acc
@@ -86,9 +86,51 @@ let one lines =
 
         Map.toSeq >> Seq.fold fold 0L
 
-      // 262651903 too low
-    run state |> toInt |> printfn "%d"
+    let setInt c i state =
+        let fold state (b, v) =
+            Map.add (sprintf "%s%02d" c b) (int v) state
+
+        seq { for b in 0..63 -> b, i >>> b &&& 1L } |> Seq.fold fold state
+
+let one lines =
+    let { state = state; gates = gates } = parse lines
+
+    state |> Device.run gates |> Device.toInt "z" |> printfn "%d"
     0
 
+let toDot: Gate seq -> unit =
+    Seq.sortBy (fun { output = o } -> o)
+    >> Seq.map (fun { output = o; inputs = (a, b); op = op } ->
+        [ a; b ]
+        |> Seq.map (sprintf "%s -> %s;")
+        |> Seq.map ((|>) o)
+        |> Seq.append [ sprintf "%s [label=\"%A\"];" o op ]
+        |> String.concat "\n")
+    >> String.concat "\n"
+    >> printfn
+        "digraph {
+      %s
+    }"
+
 let two lines =
-  0
+    let { gates = gates } = parse lines
+
+    let maxBit =
+        gates
+        |> Seq.map (fun g -> g.output)
+        |> Seq.max
+        |> String.split "z"
+        |> Seq.last
+        |> int
+
+    let test input =
+        let state = Map.empty |> Device.setInt "x" input |> Device.setInt "y" input
+        (Device.run gates state |> Device.toInt "z")
+
+    let partition b =
+        let input = 1L <<< b
+        test input = input * 2L
+
+    let pass, fail = [ 0..maxBit ] |> List.partition partition
+
+    0
