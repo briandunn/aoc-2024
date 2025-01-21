@@ -86,9 +86,10 @@ module Device =
 
         Map.toSeq >> Seq.fold fold 0L
 
+    let toEdge = sprintf "%s%02d"
+
     let setInt c i state =
-        let fold state (b, v) =
-            Map.add (sprintf "%s%02d" c b) (int v) state
+        let fold state (b, v) = Map.add (toEdge c b) (int v) state
 
         seq { for b in 0..63 -> b, i >>> b &&& 1L } |> Seq.fold fold state
 
@@ -99,18 +100,46 @@ let one lines =
     0
 
 let toDot: Gate seq -> unit =
-    Seq.sortBy (fun { output = o } -> o)
-    >> Seq.map (fun { output = o; inputs = (a, b); op = op } ->
-        [ a; b ]
-        |> Seq.map (sprintf "%s -> %s;")
-        |> Seq.map ((|>) o)
-        |> Seq.append [ sprintf "%s [label=\"%A\"];" o op ]
-        |> String.concat "\n")
-    >> String.concat "\n"
-    >> printfn
-        "digraph {
-      %s
-    }"
+    let toLabel n l = sprintf "%s [label=\"%A\"]" n l
+    let toOutLabel n l = sprintf "%s [label=\"%s %A\"]" n n l
+
+    let fold (nodes, clusters, connections) { output = o; inputs = (a, b); op = op } =
+        let nodes, clusters =
+            let fold (nodes, clusters) k =
+                let c = Seq.head k
+
+                match Map.tryFind c clusters with
+                | Some set when c = 'z' -> nodes, Map.add c (Set.add (toOutLabel k op) set) clusters
+                | Some set -> nodes, Map.add c (Set.add k set) clusters
+                | None -> Set.add (toLabel k op) nodes, clusters
+
+            Seq.fold fold (nodes, clusters) [ a; b; o ]
+
+        let connections =
+            [ a; b ]
+            |> Seq.map (sprintf "%s -> %s;")
+            |> Seq.map ((|>) o)
+            |> String.concat "\n"
+            |> sprintf "%s\n%s" connections
+
+        nodes, clusters, connections
+
+    let clusters =
+        List.fold (fun m k -> Map.add k Set.empty m) Map.empty [ 'x'; 'y'; 'z' ]
+
+    Seq.fold fold (Set.empty, clusters, "")
+    >> fun (nodes, clusters, connections) ->
+        let nodes = String.concat "\n" nodes
+
+        let clusters =
+            clusters
+            |> Map.toSeq
+            |> Seq.map (fun (k, v) -> sprintf "subgraph cluster_%c { %s }" k (Set.fold (sprintf "%s\n%s") "" v))
+            |> Seq.fold (sprintf "%s\n%s") ""
+
+        [ "digraph {"; nodes; clusters; connections; "}" ]
+        |> String.concat "\n"
+        |> printfn "%s"
 
 let two lines =
     let { gates = gates } = parse lines
@@ -131,6 +160,28 @@ let two lines =
         let input = 1L <<< b
         test input = input * 2L
 
-    let pass, fail = [ 0..maxBit ] |> List.partition partition
+    // let pass, fail = [ 0..maxBit ] |> List.partition partition
+
+    // [ "x"; "y" ]
+    // |> List.map Device.toEdge
+    // |> List.map ((|>) (List.min pass))
+    // |> printfn "%A"
+
+    let rec gatherConnected connected =
+        let filter wire { output = o } = o = wire
+        let fold acc { inputs = (a, b) } = a :: b :: acc
+
+        function
+        | head :: rest ->
+            let gates = Seq.filter (filter head) gates
+            gatherConnected (Seq.append gates connected) ((Seq.fold fold [] gates) @ rest)
+        | [] -> connected
+
+    gatherConnected Seq.empty [ "z00"; "z01"; "z02"; "z03" ]
+    |> Seq.distinct
+    |> toDot
+
+    // traverse the graph from like x0, y0, z0
+    // these connections *should* be the same for all successful bits, including the cary
 
     0
