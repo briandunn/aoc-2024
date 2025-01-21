@@ -67,13 +67,14 @@ let one lines =
 
     let tick = Seq.foldBack execute gates
 
-
     let rec run state =
         let state' = tick state
         if state = state' then state else run state'
 
     let toInt =
-        let setBit b n = n ||| (1 <<< b)
+        let setBit b n =
+          printfn "%d" b
+          n ||| (1L <<< b)
 
         let fold acc (k, v) =
             k
@@ -83,9 +84,11 @@ let one lines =
                 | [ ""; i ] when v = 1 -> setBit (int i) acc
                 | _ -> acc
 
-        Map.toSeq >> Seq.fold fold 0
+        Map.toSeq >> Seq.fold fold 0L
 
       // 262651903 too low
-    run state |> toInt
+    run state |> toInt |> printfn "%d"
+    0
 
-let two lines = 0
+let two lines =
+  0
