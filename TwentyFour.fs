@@ -134,7 +134,7 @@ let toDot: Gate seq -> unit =
         let clusters =
             clusters
             |> Map.toSeq
-            |> Seq.map (fun (k, v) -> sprintf "subgraph cluster_%c { %s }" k (Set.fold (sprintf "%s\n%s") "" v))
+            |> Seq.map (fun (k, v) -> sprintf "subgraph cluster_%c {\nordering=out;\n%s\n}" k (String.concat "\n" v))
             |> Seq.fold (sprintf "%s\n%s") ""
 
         [ "digraph {"; nodes; clusters; connections; "}" ]
@@ -154,18 +154,22 @@ let two lines =
 
     let test input =
         let state = Map.empty |> Device.setInt "x" input |> Device.setInt "y" input
-        (Device.run gates state |> Device.toInt "z")
+        Device.run gates state |> Device.toInt "z"
 
     let partition b =
         let input = 1L <<< b
-        test input = input * 2L
+        let output = test input
+        let expected = input * 2L
+        if output = expected then
+            true
+        else
+            printfn "bit:%d" b
+            printfn "expected:%B" expected
+            printfn "  actual:%B" output
+            false
 
-    // let pass, fail = [ 0..maxBit ] |> List.partition partition
 
-    // [ "x"; "y" ]
-    // |> List.map Device.toEdge
-    // |> List.map ((|>) (List.min pass))
-    // |> printfn "%A"
+    let pass, fail = [ 0..maxBit ] |> List.partition partition
 
     let rec gatherConnected connected =
         let filter wire { output = o } = o = wire
@@ -177,11 +181,15 @@ let two lines =
             gatherConnected (Seq.append gates connected) ((Seq.fold fold [] gates) @ rest)
         | [] -> connected
 
-    gatherConnected Seq.empty [ "z00"; "z01"; "z02"; "z03" ]
-    |> Seq.distinct
-    |> toDot
+    // pass
+    // |> List.take 5
+    // |> List.map (fun x -> Device.toEdge "z" x)
+    // |> gatherConnected Seq.empty
+    // |> Seq.distinct
+    // |> toDot
 
     // traverse the graph from like x0, y0, z0
-    // these connections *should* be the same for all successful bits, including the cary
+    // these connections *should* be the same for all successful bits, including the cary.
+    // follow the cary into the next bit, and check that the connections between nodes and the node types are the same.
 
     0
