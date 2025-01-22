@@ -1,11 +1,7 @@
 module TwentyFive
 
-type Schematic =
-    | Key
-    | Lock
-
-let parse lines  =
-    let fold (locks, keys) (lines: string list) =
+let parse lines =
+    let fold (locks, keys) lines =
         let change y =
             function
             | Some(yMin, yMax) -> min y yMin, max y yMax
@@ -32,16 +28,26 @@ let parse lines  =
         |> toSchematic
 
 
-    let rec loop (schematic: string list) acc lines =
+    let rec loop schematic acc lines =
         match Seq.tryHead lines with
         | None -> schematic |> List.rev |> fold acc
-        | Some "" -> loop [] (fold acc (List.rev schematic)) (Seq.tail lines)
-        | Some line -> loop (line::schematic) acc (Seq.tail lines)
+        | Some "" -> loop [] (schematic |> List.rev |> fold acc) lines
+        | Some line -> loop (line :: schematic) acc lines
 
-    lines |> Seq.cache |> loop [] (Set.empty, Set.empty)
+    lines |> loop [] (Set.empty, Set.empty)
 
 let one (lines: string seq) =
-    lines |> parse |> printfn "%A"
-    0
+    let fit lock key =
+        Array.zip lock key |> Array.forall (fun (l, k) -> l < k)
+
+    let locks, keys = parse lines
+
+    let fold count lock =
+        let fold count key =
+            if fit lock key then count + 1 else count
+
+        Set.fold fold count keys
+
+    Set.fold fold 0 locks
 
 let two _ = 0
